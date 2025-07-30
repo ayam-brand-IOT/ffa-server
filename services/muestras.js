@@ -76,7 +76,7 @@ function getById(id) {
 
 function create(muestra) {
   // validateCreate(batchObj);
-  const date = new Date().toLocaleString();
+  const date = new Date().toISOString();
   console.warn(muestra);
   const { image, weight, length, height, head_length, tail_trigger, defects, lot_no } = muestra;
   const result = db.run(
