@@ -159,6 +159,11 @@ app.post("/edit_lot", (req, res) => {
   res.send(`Data edited successfully!`);
 });
 
+app.get("/lots", (req, res) => {
+  const data = lot.getAll();
+  res.send(data);
+});
+
 app.get("/lots/:page", (req, res) => {
   const page = req.params.page || 1;
   const data = lot.getMultiple(page);

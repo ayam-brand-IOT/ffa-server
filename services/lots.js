@@ -16,7 +16,7 @@ wms_code: "",
 
 function getMultiple(page = 1) {
     const offset = (page - 1) * config.listPerPage;
-    const data = db.query(`SELECT * FROM LOT LIMIT ?,?`, [
+    const data = db.query(`SELECT * FROM LOT ORDER BY rowid DESC LIMIT ?,?`, [
         offset,
         config.listPerPage,
     ]);
@@ -46,10 +46,16 @@ function edit(lot) {
     return { message };
 }
 
+function getAll() {
+    const data = db.query(`SELECT * FROM LOT ORDER BY rowid DESC`, []);
+    return { data };
+}
+
 
 
 module.exports = {
     getMultiple,
     add,
-    edit
+    edit,
+    getAll
   };
