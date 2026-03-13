@@ -175,10 +175,19 @@ app.get("/download-lot-samples/:lot_no", async (req, res) => {
   const lot_no = req.params.lot_no;
 
   try {
+    // Fetch lot information
+    const lotInfo = lot.getByLotNo(lot_no);
+    
+    if (!lotInfo) {
+      return res.status(404).send("Lot not found");
+    }
+
     // Fetch data from the database
     const headers = [
       { header: "id", key: "id" },
       { header: "Lot #", key: "lot_no" },
+      { header: "Order No", key: "order_no" },
+      { header: "Supplier", key: "supplier" },
       { header: "Weight", key: "weight" },
       { header: "Length", key: "length" },
       { header: "Height", key: "height" },
@@ -186,10 +195,17 @@ app.get("/download-lot-samples/:lot_no", async (req, res) => {
       { header: "Defects", key: "defects"}
     ];
     
-    const {data} = muestra.getByLotNo(lot_no); // Implement this function
+    const {data} = muestra.getByLotNo(lot_no);
+
+    // Add lot info to each sample
+    const enrichedData = data.map(sample => ({
+      ...sample,
+      order_no: lotInfo.order_no,
+      supplier: lotInfo.supplier
+    }));
 
     // Generate Excel file
-    const filePath = await generateExcelFile(data, headers); // Implement this function
+    const filePath = await generateExcelFile(enrichedData, headers);
 
     // Set filename for the download
     const filename = "data.xlsx";

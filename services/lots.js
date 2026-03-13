@@ -51,11 +51,15 @@ function getAll() {
     return { data };
 }
 
-
+function getByLotNo(lot_no) {
+    const data = db.query(`SELECT * FROM LOT WHERE lot_no = ?`, [lot_no]);
+    return data.length > 0 ? data[0] : null;
+}
 
 module.exports = {
     getMultiple,
     add,
     edit,
-    getAll
+    getAll,
+    getByLotNo
   };
