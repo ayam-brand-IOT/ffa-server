@@ -113,15 +113,18 @@ function create(muestra) {
 //   return { data };
 // }
 
+function remove(id) {
+  db.run("DELETE FROM MUESTRA_DEFECT WHERE muestra_id = @id", { id });
+  db.run("DELETE FROM MUESTRA WHERE id = @id", { id });
+}
+
 module.exports = {
   getMultiple,
   create,
   getById,
   getAll,
+  remove,
   insertMuestraDefects,
   getAllFrom,
   getByLotNo
-  // accomulate,
-  // changeType,
-  // getType,
 };

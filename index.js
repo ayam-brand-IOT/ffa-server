@@ -138,13 +138,12 @@ app.get("/select/:id", (req, res) => {
 // POST handler for deleting data
 app.post("/delete", (req, res) => {
   const id = req.body.id;
-  const data = muestra.getById(id);
-  if (index !== -1) {
-    data.splice(index, 1);
-    res.send(`Data with ID ${id} deleted successfully!`);
-  } else {
-    res.send(`Data with ID ${id} not found.`);
+  const existing = muestra.getById(id);
+  if (!existing || !existing.data || existing.data.length === 0) {
+    return res.status(404).send(`Data with ID ${id} not found.`);
   }
+  muestra.remove(id);
+  res.send(`Data with ID ${id} deleted successfully!`);
 });
 
 app.post("/add_lot", (req, res) => {
