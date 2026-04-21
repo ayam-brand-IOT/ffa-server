@@ -1,157 +1,205 @@
 # ffa-server
 
-**ffa-server** is the Node.js-based server component of the **Frozen Fish Analysis (FFA)** system. It provides RESTful APIs for managing batches, samples, and additional fish analysis data. It also supports file uploads, image serving, and Excel export functionality.
+API REST del sistema FFA. Este servicio centraliza persistencia en SQLite, subida y consulta de imagenes, pruebas de tension y exportacion de muestras por lote.
 
-The server communicates with the `ffa-app` over **port 3002**.
+## Rol dentro del sistema
 
-## Features
+- recibe lotes, muestras e imagenes extra desde la UI
+- guarda la informacion en `fish_analysis.db`
+- sirve imagenes almacenadas en `muestras/`
+- genera archivos Excel por lote
 
-- **Batch Management**: Add, edit, and retrieve batches.
-- **Sample Management**: Upload images, add samples, and retrieve sample history.
-- **Image Handling**: Serve uploaded images for analysis.
-- **Excel Export**: Generate Excel files containing sample data for specific lots.
+`ffa-server` escucha en `http://localhost:3002`.
 
-## Requirements
+## Stack
 
-- **Node.js**: v16+ (recommended).
-- **npm**: v8+.
+- Node.js 16+
+- Express
+- better-sqlite3
+- Multer
+- ExcelJS
 
-## Installation
+## Estructura principal
 
-1. **Clone the Repository**:
-   ```bash
-   git clone https://github.com/ayam-brand-IOT/ffa-server.git
-   cd ffa-server
-   ```
-
-2. **Install Dependencies**:
-   ```bash
-   npm install
-   ```
-
-3. **Run the Server**:
-   ```bash
-   npm start
-   ```
-
-   The server will run on `http://localhost:3002`.
-
-## API Endpoints
-
-### Sample Management
-
-| Method | Endpoint                     | Description                        |
-|--------|------------------------------|------------------------------------|
-| POST   | `/add`                       | Add a new sample with image upload.|
-| GET    | `/history/:page`             | Retrieve paginated sample history. |
-| GET    | `/history`                   | Retrieve full sample history.      |
-| GET    | `/lot_samples/:lot_no`       | Get samples for a specific lot.    |
-| GET    | `/lot_samples_full/:lot_no`  | Get full details of lot samples.   |
-| GET    | `/muestra_image/:path`       | Retrieve uploaded sample image.    |
-
-### Lot Management
-
-| Method | Endpoint                     | Description                        |
-|--------|------------------------------|------------------------------------|
-| POST   | `/add_lot`                   | Add a new lot.                     |
-| POST   | `/edit_lot`                  | Edit existing lot information.     |
-| GET    | `/lots/:page`                | Retrieve paginated lots.           |
-| POST   | `/add-lot-image`             | Upload additional lot image.       |
-| GET    | `/lot_images/:lot_no`        | Get all images from a lot.         |
-| GET    | `/lot_image/:path`           | Retrieve a specific lot image.     |
-
-### Tension Test
-
-| Method | Endpoint                     | Description                        |
-|--------|------------------------------|------------------------------------|
-| POST   | `/add-lot-tension`           | Add a tension test for a lot.      |
-| GET    | `/lot_tension/:lot_no`       | Retrieve tension tests for a lot.  |
-
-### Excel Export
-
-| Method | Endpoint                     | Description                        |
-|--------|------------------------------|------------------------------------|
-| GET    | `/download-lot-samples/:lot_no` | Export lot sample data as Excel.    |
-
-### Utility Endpoints
-
-| Method | Endpoint                     | Description                        |
-|--------|------------------------------|------------------------------------|
-| GET    | `/select/:id`                | Retrieve specific sample by ID.    |
-| POST   | `/delete`                    | Delete sample data by ID.          |
-
-## File Uploads and Image Serving
-
-- Images uploaded through `/add` or `/add-lot-image` are stored in the `muestras` folder.
-- Images can be retrieved using the endpoints:
-  - `/muestra_image/:path`
-  - `/lot_image/:path`
-
-## Excel Export
-
-The `/download-lot-samples/:lot_no` endpoint generates an Excel file containing sample data for a specific lot.
-
-### File Format
-
-| Column        | Description         |
-|---------------|---------------------|
-| `id`         | Sample ID.          |
-| `lot_no`     | Lot number.         |
-| `weight`     | Sample weight.      |
-| `length`     | Sample length.      |
-| `height`     | Sample height.      |
-| `date`       | Date of sample.     |
-| `defects`    | Defect details.     |
-
-## Directory Structure
-
-```
+```text
 ffa-server/
-│
-├── public/             # Static files served by the server
-├── muestras/           # Uploaded images
-├── services/           # Business logic for lots, samples, and tests
-├── data/               # SQLite database storage
-├── scripts/            # Utility scripts (e.g., database initialization)
-├── data.xlsx           # Temporary Excel files
-├── app.js              # Main server file
-└── package.json        # Project dependencies and scripts
+├── index.js
+├── config.js
+├── fish_analysis.db
+├── muestras/
+├── public/
+├── services/
+│   ├── db.js
+│   ├── lots.js
+│   ├── muestras.js
+│   ├── extraImages.js
+│   └── tensionTest.js
+├── Dockerfile
+└── package.json
 ```
 
-## Running the Server
+## Instalacion y arranque
 
-- **Start in Production**:
-   ```bash
-   npm start
-   ```
+```bash
+cd ffa-server
+npm install
+npm start
+```
 
-## Updating the Server
+El script `start` ejecuta `node index.js`.
 
-1. **Pull Latest Changes**:
-   ```bash
-   git pull origin main
-   ```
+## Modelo de datos que maneja el codigo
 
-2. **Install New Dependencies**:
-   ```bash
-   npm install
-   ```
+### Lotes
 
-3. **Restart the Server**:
-   ```bash
-   npm restart
-   ```
+Campos esperados por `services/lots.js`:
 
-## Contribution Guidelines
+- `supplier`
+- `lot_no`
+- `production_date`
+- `fish_species`
+- `type`
+- `size`
+- `order_no`
+- `wms_code`
 
-1. Fork the repository.
-2. Open a pull request with detailed descriptions of your changes.
-3. Follow standard Node.js and JavaScript practices.
+### Muestras
 
-## License
+Campos usados por `services/muestras.js`:
 
-This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
+- `image`
+- `weight`
+- `length`
+- `height`
+- `head_length`
+- `tail_trigger`
+- `defects`
+- `lot_no`
 
-## Contact
+### Imagenes extra por lote
 
-For further details or support, please contact the system administrator or project maintainer.
+- `lot_no`
+- `image`
+
+### Prueba de tension
+
+- `lot_no`
+- `break_point`
+
+## API disponible
+
+### Lotes
+
+| Metodo | Ruta | Descripcion |
+| --- | --- | --- |
+| `POST` | `/add_lot` | Crea un lote |
+| `POST` | `/edit_lot` | Edita un lote existente usando `lot_no` |
+| `GET` | `/lots` | Regresa todos los lotes |
+| `GET` | `/lots/:page` | Regresa lotes paginados |
+
+### Muestras
+
+| Metodo | Ruta | Descripcion |
+| --- | --- | --- |
+| `POST` | `/add` | Crea una muestra con imagen subida por formulario multipart |
+| `GET` | `/history` | Regresa todas las muestras |
+| `GET` | `/history/:page` | Regresa muestras paginadas |
+| `GET` | `/lot_samples/:lot_no` | Regresa muestras de un lote |
+| `GET` | `/lot_samples_full/:lot_no` | Regresa muestras con defectos concatenados |
+| `GET` | `/select/:id` | Regresa una muestra especifica |
+| `POST` | `/delete` | Borra una muestra y sus defectos asociados |
+
+### Imagenes
+
+| Metodo | Ruta | Descripcion |
+| --- | --- | --- |
+| `POST` | `/add-lot-image` | Sube una imagen extra para un lote |
+| `GET` | `/lot_images/:lot_no` | Lista imagenes extra del lote |
+| `GET` | `/muestra_image/:path` | Sirve imagen de muestra |
+| `GET` | `/lot_image/:path` | Sirve imagen extra |
+
+### Tension
+
+| Metodo | Ruta | Descripcion |
+| --- | --- | --- |
+| `POST` | `/add-lot-tension` | Guarda un punto de ruptura para un lote |
+| `GET` | `/lot_tension/:lot_no` | Consulta pruebas de tension del lote |
+
+### Exportacion
+
+| Metodo | Ruta | Descripcion |
+| --- | --- | --- |
+| `GET` | `/download-lot-samples/:lot_no` | Genera y descarga un `.xlsx` con muestras del lote |
+
+## Formatos de uso
+
+### Crear lote
+
+```http
+POST /add_lot
+Content-Type: application/json
+```
+
+```json
+{
+  "supplier": "Proveedor A",
+  "lot_no": "LOT-001",
+  "production_date": "2026-04-21",
+  "fish_species": "MACK",
+  "type": "HG",
+  "size": "XL",
+  "order_no": "PO-123",
+  "wms_code": "WMS-999"
+}
+```
+
+### Crear muestra con imagen
+
+`/add` espera `multipart/form-data` con:
+
+- `image`: archivo JPG
+- `lot_no`
+- `weight`
+- `length`
+- `height`
+- `head_length`
+- `tail_trigger`
+- `defects`: string JSON, por ejemplo `[0,2,4]`
+
+## Exportacion a Excel
+
+El archivo descargado incluye estas columnas:
+
+- `id`
+- `Lot #`
+- `Order No`
+- `Supplier`
+- `Weight`
+- `Length`
+- `Height`
+- `Date`
+- `Defects`
+
+Internamente se genera un `data.xlsx` temporal en el directorio del servicio y se elimina despues de enviarse.
+
+## Persistencia y archivos
+
+- la base usada por el codigo es `fish_analysis.db`
+- las imagenes se guardan en `muestras/`
+- tanto `/muestra_image/:path` como `/lot_image/:path` leen desde la misma carpeta `muestras/`
+
+## Consideraciones actuales
+
+- el puerto esta fijo en `3002`; el codigo no lee hoy una variable `PORT`
+- `services/db.js` abre `fish_analysis.db` por ruta relativa local; la variable `DATABASE_PATH` del `docker-compose` no se consume actualmente
+- `config.js` solo controla paginacion con `LIST_PER_PAGE`
+- CORS esta abierto a `*`
+
+## Docker
+
+```bash
+docker build -t ffa-server ./ffa-server
+docker run -p 3002:3002 ffa-server
+```
+
+En el repo raiz hay un `docker-compose.yaml` para levantarlo junto con `ffa-app`.
