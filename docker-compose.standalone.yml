@@ -1,0 +1,15 @@
+services:
+  ffa-server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "3002:3002"
+    volumes:
+      - ./data:/app/data
+      - ./muestras:/app/muestras
+    environment:
+      - PORT=3002
+      - DATABASE_PATH=/app/data/ffa-server.sqlite
+      - UPLOADS_PATH=/app/muestras
+    restart: unless-stopped

@@ -5,11 +5,11 @@ API REST del sistema FFA. Este servicio centraliza persistencia en SQLite, subid
 ## Rol dentro del sistema
 
 - recibe lotes, muestras e imagenes extra desde la UI
-- guarda la informacion en `fish_analysis.db`
-- sirve imagenes almacenadas en `muestras/`
+- guarda la informacion en SQLite
+- sirve imagenes almacenadas en la carpeta configurada para uploads
 - genera archivos Excel por lote
 
-`ffa-server` escucha en `http://localhost:3002`.
+`ffa-server` escucha por defecto en `http://localhost:3002`.
 
 ## Stack
 
@@ -47,6 +47,18 @@ npm start
 ```
 
 El script `start` ejecuta `node index.js`.
+
+## Configuracion
+
+El servicio puede correr con sus rutas locales por defecto o con variables de entorno para despliegue:
+
+| Variable | Default | Uso |
+| --- | --- | --- |
+| `PORT` | `3002` | Puerto HTTP del server |
+| `DATABASE_PATH` | `./fish_analysis.db` | Ruta del archivo SQLite activo |
+| `UPLOADS_PATH` | `./muestras` | Carpeta donde se guardan y leen imagenes |
+
+Si `DATABASE_PATH` apunta a un archivo que todavia no existe, el server copia la DB semilla `fish_analysis.db` a esa ruta. Esto permite montar un volumen vacio en Docker y arrancar con el esquema actual.
 
 ## Modelo de datos que maneja el codigo
 
@@ -184,22 +196,43 @@ Internamente se genera un `data.xlsx` temporal en el directorio del servicio y s
 
 ## Persistencia y archivos
 
-- la base usada por el codigo es `fish_analysis.db`
-- las imagenes se guardan en `muestras/`
-- tanto `/muestra_image/:path` como `/lot_image/:path` leen desde la misma carpeta `muestras/`
+- la base por defecto es `fish_analysis.db`
+- en Docker standalone se usa `./data/ffa-server.sqlite` montado como volumen
+- las imagenes por defecto se guardan en `muestras/`
+- en Docker standalone las imagenes se guardan en `./muestras`
+- tanto `/muestra_image/:path` como `/lot_image/:path` leen desde la misma carpeta configurada en `UPLOADS_PATH`
 
 ## Consideraciones actuales
 
-- el puerto esta fijo en `3002`; el codigo no lee hoy una variable `PORT`
-- `services/db.js` abre `fish_analysis.db` por ruta relativa local; la variable `DATABASE_PATH` del `docker-compose` no se consume actualmente
 - `config.js` solo controla paginacion con `LIST_PER_PAGE`
 - CORS esta abierto a `*`
 
 ## Docker
 
+### Imagen simple
+
 ```bash
-docker build -t ffa-server ./ffa-server
-docker run -p 3002:3002 ffa-server
+docker build -t ffa-server .
+docker run \
+  -p 3002:3002 \
+  -e DATABASE_PATH=/app/data/ffa-server.sqlite \
+  -e UPLOADS_PATH=/app/muestras \
+  -v "$(pwd)/data:/app/data" \
+  -v "$(pwd)/muestras:/app/muestras" \
+  ffa-server
 ```
 
-En el repo raiz hay un `docker-compose.yaml` para levantarlo junto con `ffa-app`.
+### Compose standalone
+
+Para probar solo este server, sin levantar `ffa-app` ni la UI:
+
+```bash
+docker compose -f docker-compose.standalone.yml up --build
+```
+
+Datos persistentes:
+
+- SQLite: `./data/ffa-server.sqlite`
+- Imagenes: `./muestras/`
+
+En el repo raiz tambien hay un `docker-compose.yaml` para levantarlo junto con `ffa-app`, pero esta rama esta pensada para probar el server separado.

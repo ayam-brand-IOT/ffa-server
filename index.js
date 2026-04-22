@@ -12,6 +12,12 @@ const lot_tension = require("./services/tensionTest");
 // const { v4: uuidv4 } = require('uuid'); // import uuid
 
 const app = express();
+const port = Number(process.env.PORT || 3002);
+const uploadsPath = path.resolve(
+  process.env.UPLOADS_PATH || path.join(__dirname, "muestras")
+);
+
+fs.mkdirSync(uploadsPath, { recursive: true });
 
 app.use(cors({ origin: "*" }));
 
@@ -21,7 +27,7 @@ app.use(express.static(path.join(__dirname, "public"))); // serve static files f
 
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
-    cb(null, path.join(__dirname, "muestras")); // use path.join to ensure the correct path on all OSes
+    cb(null, uploadsPath);
   },
   filename: function (req, file, cb) {
     // const uniqueFilename = `${uuidv4()}-${file.originalname}`
@@ -29,6 +35,12 @@ const storage = multer.diskStorage({
     cb(null, uniqueFilename);
   },
 });
+
+function sendUploadedImage(res, filename) {
+  const file = path.join(uploadsPath, path.basename(filename));
+  if (fs.existsSync(file)) res.sendFile(path.resolve(file));
+  else res.status(422).json({ error: "There's no Image" });
+}
 
 const upload = multer({
   storage: storage,
@@ -102,19 +114,11 @@ app.get("/lot_images/:lot_no", (req, res) => {
 });
 
 app.get("/muestra_image/:path", (req, res) => {
-  // return image that supossed to be in "muestras folder"
-  const file =
-    path.dirname(require.main.filename) + "/muestras/" + req.params.path;
-  if (fs.existsSync(file)) res.sendFile(path.resolve(file));
-  else res.status(422).json({ error: "There's no Image" });
+  sendUploadedImage(res, req.params.path);
 });
 
 app.get("/lot_image/:path", (req, res) => {
-  // return image that supossed to be in "muestras folder"
-  const file =
-    path.dirname(require.main.filename) + "/muestras/" + req.params.path;
-  if (fs.existsSync(file)) res.sendFile(path.resolve(file));
-  else res.status(422).json({ error: "There's no Image" });
+  sendUploadedImage(res, req.params.path);
 });
 
 app.get("/lot_tension/:lot_no", (req, res) => {
@@ -233,4 +237,4 @@ app.get("/download-lot-samples/:lot_no", async (req, res) => {
 });
 
 // Start the server
-app.listen(3002, () => console.log("Server running on port 3002"));
+app.listen(port, () => console.log(`Server running on port ${port}`));
