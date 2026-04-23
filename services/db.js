@@ -18,6 +18,16 @@ if (!fs.existsSync(databasePath)) {
 
 const db = new sqlite(databasePath, { fileMustExist: true });
 
+db.exec(`
+  CREATE TABLE IF NOT EXISTS LOT_GUTS_WEIGHT (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    lot_no      STRING  NOT NULL REFERENCES LOT (lot_no) ON DELETE CASCADE,
+    muestra_id  INTEGER REFERENCES MUESTRA (id) ON DELETE SET NULL,
+    guts_weight DECIMAL NOT NULL,
+    recorded_at DATE    NOT NULL
+  )
+`);
+
 function query(sql, params) {
   return db.prepare(sql).all(params);
 }

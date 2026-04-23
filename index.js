@@ -9,6 +9,9 @@ const lot = require("./services/lots");
 const muestra = require("./services/muestras");
 const lot_image = require("./services/extraImages");
 const lot_tension = require("./services/tensionTest");
+const lot_guts   = require("./services/gutsWeight");
+const lotReport  = require("./services/lotReport");
+const pdfReport  = require("./services/pdfReport");
 // const { v4: uuidv4 } = require('uuid'); // import uuid
 
 const app = express();
@@ -82,6 +85,21 @@ app.post("/add-lot-tension", (req, res) => {
   const newData = req.body;
   lot_tension.create(newData);
   res.send(`New data added successfully!`);
+});
+
+app.post("/add-guts-weight", (req, res) => {
+  const result = lot_guts.create(req.body);
+  res.json(result);
+});
+
+app.get("/lot_guts_weight/:lot_no", (req, res) => {
+  const data = lot_guts.getAllFrom(req.params.lot_no);
+  res.json(data);
+});
+
+app.get("/lot_guts_weight_latest/:lot_no", (req, res) => {
+  const data = lot_guts.getLatestFrom(req.params.lot_no);
+  res.json(data ?? {});
 });
 
 app.get("/history/:page", (req, res) => {
@@ -171,6 +189,25 @@ app.get("/lots/:page", (req, res) => {
   const page = req.params.page || 1;
   const data = lot.getMultiple(page);
   res.send(data);
+});
+
+// PDF REPORT
+app.get("/download-lot-report/:lot_no", (req, res) => {
+  const lot_no = req.params.lot_no;
+  const data = lotReport.getLotReportData(lot_no);
+
+  if (!data) {
+    return res.status(404).json({ error: `Lot ${lot_no} not found` });
+  }
+
+  const datePrefix = new Date().toISOString().slice(0, 10).replace(/-/g, "");
+  const filename = `${datePrefix}_${lot_no}.pdf`;
+
+  res.setHeader("Content-Type", "application/pdf");
+  res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+
+  const doc = pdfReport.generateLotPdf(data, uploadsPath);
+  doc.pipe(res);
 });
 
 // EXCEL
