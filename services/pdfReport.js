@@ -152,7 +152,7 @@ function generateLotPdf(data, uploadsPath) {
     { label: "Size",            value: data.lot.size },
     { label: "Production Date", value: dateStr(data.lot.production_date) },
     { label: "Order No",        value: data.lot.order_no },
-    { label: "WMS Code",        value: data.lot.wms_code },
+    { label: "Item Code",       value: data.lot.item_code },
   ], 4);
 
   doc.moveDown(0.5);
@@ -239,7 +239,7 @@ function generateLotPdf(data, uploadsPath) {
 
   // ── EXTRA IMAGES ─────────────────────────────────────────────────────────
   if (data.extraImages.length > 0) {
-    sectionTitle(doc, `Extra Lot Images  (${data.extraImages.length})`);
+    sectionTitle(doc, `Other Findings Images  (${data.extraImages.length})`);
     doc.moveDown(0.4);
 
     const imgPerRow  = 3;

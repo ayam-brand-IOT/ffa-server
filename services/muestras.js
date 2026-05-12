@@ -118,6 +118,10 @@ function remove(id) {
   db.run("DELETE FROM MUESTRA WHERE id = @id", { id });
 }
 
+function getDefects() {
+  return db.query("SELECT id, name FROM DEFFECTS ORDER BY id", []);
+}
+
 module.exports = {
   getMultiple,
   create,
@@ -126,5 +130,6 @@ module.exports = {
   remove,
   insertMuestraDefects,
   getAllFrom,
-  getByLotNo
+  getByLotNo,
+  getDefects,
 };

@@ -215,59 +215,64 @@ app.get("/download-lot-samples/:lot_no", async (req, res) => {
   const lot_no = req.params.lot_no;
 
   try {
-    // Fetch lot information
     const lotInfo = lot.getByLotNo(lot_no);
-    
-    if (!lotInfo) {
-      return res.status(404).send("Lot not found");
-    }
+    if (!lotInfo) return res.status(404).send("Lot not found");
 
-    // Fetch data from the database
-    const headers = [
-      { header: "id", key: "id" },
-      { header: "Lot #", key: "lot_no" },
-      { header: "Order No", key: "order_no" },
-      { header: "Supplier", key: "supplier" },
-      { header: "Weight", key: "weight" },
-      { header: "Length", key: "length" },
-      { header: "Height", key: "height" },
-      { header: "Date", key: "date" },
-      { header: "Defects", key: "defects"}
+    // Una columna por defecto: 1 si presente, 0 si no
+    const allDefects = muestra.getDefects();
+
+    const baseHeaders = [
+      { header: "id",        key: "id" },
+      { header: "Lot #",     key: "lot_no" },
+      { header: "Order No",  key: "order_no" },
+      { header: "Supplier",  key: "supplier" },
+      { header: "Weight",    key: "weight" },
+      { header: "Length",    key: "length" },
+      { header: "Height",    key: "height" },
+      { header: "Date",      key: "date" },
     ];
-    
-    const {data} = muestra.getByLotNo(lot_no);
 
-    // Add lot info to each sample
-    const enrichedData = data.map(sample => ({
-      ...sample,
-      order_no: lotInfo.order_no,
-      supplier: lotInfo.supplier
+    const defectHeaders = allDefects.map(d => ({
+      header: d.name,
+      key: `def_${d.id}`,
     }));
 
-    // Generate Excel file
+    const headers = [...baseHeaders, ...defectHeaders];
+
+    const { data } = muestra.getByLotNo(lot_no);
+
+    const enrichedData = data.map(sample => {
+      const presentDefects = sample.defects
+        ? sample.defects.split(",").map(s => s.trim())
+        : [];
+
+      const defectCols = {};
+      allDefects.forEach(d => {
+        defectCols[`def_${d.id}`] = presentDefects.includes(d.name) ? 1 : 0;
+      });
+
+      return {
+        ...sample,
+        order_no: lotInfo.order_no,
+        supplier: lotInfo.supplier,
+        ...defectCols,
+      };
+    });
+
     const filePath = await generateExcelFile(enrichedData, headers);
+    const datePrefix = new Date().toISOString().slice(0, 10).replace(/-/g, "");
+    const filename = `${datePrefix}_${lot_no}.xlsx`;
 
-    // Set filename for the download
-    const filename = "data.xlsx";
-
-    // Set the headers and send the file
-    res.header(
-      "Content-Type",
-      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-    );
+    res.header("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
     res.header("Content-Disposition", `attachment; filename=${filename}`);
     res.sendFile(filePath, (err) => {
       if (err) {
-        // Handle error, but don't expose to the client
         console.error(err);
         res.status(500).send("Error occurred during file download");
       }
-
-      // Optionally delete the file after sending it
       fs.unlinkSync(filePath);
     });
   } catch (error) {
-    // Handle errors
     console.error(error);
     res.status(500).send("Internal Server Error");
   }

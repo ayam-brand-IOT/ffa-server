@@ -28,6 +28,33 @@ db.exec(`
   )
 `);
 
+// Migration: rename wms_code → item_code and remove UNIQUE constraint.
+// SQLite does not support DROP CONSTRAINT so we recreate the table.
+{
+  const cols = db.prepare("PRAGMA table_info(LOT)").all().map(c => c.name);
+  if (!cols.includes("item_code")) {
+    db.exec(`
+      BEGIN TRANSACTION;
+      CREATE TABLE LOT_MIGRATED (
+        lot_no          STRING NOT NULL PRIMARY KEY,
+        supplier        STRING NOT NULL,
+        production_date DATE   NOT NULL,
+        fish_species    STRING NOT NULL,
+        size            STRING NOT NULL,
+        type            STRING NOT NULL,
+        order_no        STRING NOT NULL,
+        item_code       STRING NOT NULL
+      );
+      INSERT INTO LOT_MIGRATED
+        SELECT lot_no, supplier, production_date, fish_species, size, type, order_no, wms_code
+        FROM LOT;
+      DROP TABLE LOT;
+      ALTER TABLE LOT_MIGRATED RENAME TO LOT;
+      COMMIT;
+    `);
+  }
+}
+
 function query(sql, params) {
   return db.prepare(sql).all(params);
 }
