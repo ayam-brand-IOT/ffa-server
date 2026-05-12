@@ -30,9 +30,11 @@ db.exec(`
 
 // Migration: rename wms_code → item_code and remove UNIQUE constraint.
 // SQLite does not support DROP CONSTRAINT so we recreate the table.
+// PRAGMA foreign_keys must be set outside any transaction.
 {
   const cols = db.prepare("PRAGMA table_info(LOT)").all().map(c => c.name);
   if (!cols.includes("item_code")) {
+    db.exec("PRAGMA foreign_keys = OFF");
     db.exec(`
       BEGIN TRANSACTION;
       CREATE TABLE LOT_MIGRATED (
@@ -52,6 +54,7 @@ db.exec(`
       ALTER TABLE LOT_MIGRATED RENAME TO LOT;
       COMMIT;
     `);
+    db.exec("PRAGMA foreign_keys = ON");
   }
 }
 
