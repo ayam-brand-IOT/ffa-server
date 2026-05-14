@@ -50,6 +50,15 @@ const upload = multer({
   limits: { fieldSize: 25 * 1024 * 1024 },
 });
 
+// KL is UTC+8 with no DST — offset is always fixed
+function toKLParts(isoString) {
+  const d = new Date(new Date(isoString).getTime() + 8 * 60 * 60 * 1000);
+  const pad = n => String(n).padStart(2, "0");
+  const date = `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}`;
+  const time = `${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}:${pad(d.getUTCSeconds())}`;
+  return { date, time };
+}
+
 async function generateExcelFile(data, headers) {
   const workbook = new Excel.Workbook();
   const worksheet = workbook.addWorksheet("My Sheet");
@@ -222,14 +231,16 @@ app.get("/download-lot-samples/:lot_no", async (req, res) => {
     const allDefects = muestra.getDefects();
 
     const baseHeaders = [
-      { header: "id",        key: "id" },
-      { header: "Lot #",     key: "lot_no" },
-      { header: "Order No",  key: "order_no" },
-      { header: "Supplier",  key: "supplier" },
-      { header: "Weight",    key: "weight" },
-      { header: "Length",    key: "length" },
-      { header: "Height",    key: "height" },
-      { header: "Date",      key: "date" },
+      { header: "id",           key: "id" },
+      { header: "Lot #",        key: "lot_no" },
+      { header: "Fish Species", key: "fish_species" },
+      { header: "Order No",     key: "order_no" },
+      { header: "Supplier",     key: "supplier" },
+      { header: "Weight",       key: "weight" },
+      { header: "Length",       key: "length" },
+      { header: "Height",       key: "height" },
+      { header: "Date",         key: "sample_date" },
+      { header: "Time (KL)",    key: "sample_time" },
     ];
 
     const defectHeaders = allDefects.map(d => ({
@@ -251,10 +262,15 @@ app.get("/download-lot-samples/:lot_no", async (req, res) => {
         defectCols[`def_${d.id}`] = presentDefects.includes(d.name) ? 1 : 0;
       });
 
+      const { date: sample_date, time: sample_time } = toKLParts(sample.date);
+
       return {
         ...sample,
+        fish_species: lotInfo.fish_species,
         order_no: lotInfo.order_no,
         supplier: lotInfo.supplier,
+        sample_date,
+        sample_time,
         ...defectCols,
       };
     });
