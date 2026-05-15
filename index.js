@@ -234,6 +234,8 @@ app.get("/download-lot-samples/:lot_no", async (req, res) => {
       { header: "id",           key: "id" },
       { header: "Lot #",        key: "lot_no" },
       { header: "Fish Species", key: "fish_species" },
+      { header: "Type",         key: "type" },
+      { header: "Item Code",    key: "item_code" },
       { header: "Order No",     key: "order_no" },
       { header: "Supplier",     key: "supplier" },
       { header: "Weight",       key: "weight" },
@@ -267,6 +269,8 @@ app.get("/download-lot-samples/:lot_no", async (req, res) => {
       return {
         ...sample,
         fish_species: lotInfo.fish_species,
+        type: lotInfo.type,
+        item_code: lotInfo.item_code,
         order_no: lotInfo.order_no,
         supplier: lotInfo.supplier,
         sample_date,
