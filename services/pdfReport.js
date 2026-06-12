@@ -150,6 +150,7 @@ function generateLotPdf(data, uploadsPath) {
     { label: "Fish Species",    value: data.lot.fish_species },
     { label: "Type",            value: data.lot.type },
     { label: "Size",            value: data.lot.size },
+    { label: "Length Range",    value: data.lengthSpec ? data.lengthSpec.rangeLabel : "—" },
     { label: "Production Date", value: dateStr(data.lot.production_date) },
     { label: "Order No",        value: data.lot.order_no },
     { label: "Item Code",       value: data.lot.item_code },
@@ -174,6 +175,29 @@ function generateLotPdf(data, uploadsPath) {
   statBox(doc, MARGIN + boxW * 4,      bY, boxW - 2, boxH, "Guts Weight",   gutsW);
 
   doc.y = bY + boxH + 14;
+
+  // ── LENGTH COMPLIANCE ─────────────────────────────────────────────────────
+  if (data.lengthSpec) {
+    const ls = data.lengthSpec;
+    sectionTitle(doc, "Length Compliance");
+    doc.moveDown(0.3);
+
+    const pctColor = parseFloat(ls.pct) >= 90 ? C.green : parseFloat(ls.pct) >= 70 ? C.accent : C.red;
+
+    keyValueGrid(doc, [
+      { label: "Acceptable Range", value: ls.rangeLabel },
+      { label: "Samples Evaluated", value: String(ls.evaluated) },
+      { label: "In Spec",          value: `${ls.inSpec} / ${ls.evaluated}` },
+      { label: "Out of Spec",      value: String(ls.outOfSpec) },
+    ], 4);
+
+    const barY = doc.y;
+    horizontalBar(doc, MARGIN, barY, CONTENT, parseFloat(ls.pct), pctColor);
+    doc.font("Helvetica-Bold").fontSize(8).fillColor(pctColor)
+      .text(`${ls.pct}% within acceptable length range`, MARGIN, barY + 12);
+    doc.y = barY + 28;
+    doc.moveDown(0.5);
+  }
 
   // ── DEFECT ANALYSIS ───────────────────────────────────────────────────────
   sectionTitle(doc, "Defect Analysis");

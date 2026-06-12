@@ -28,6 +28,24 @@ db.exec(`
   )
 `);
 
+db.exec(`
+  CREATE TABLE IF NOT EXISTS CALIBRATION_HISTORY (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    load_cell     STRING NOT NULL,
+    calibrated_at DATE   NOT NULL,
+    notes         STRING
+  )
+`);
+
+// Migration: record whether each sample's length met the size's acceptable range.
+// 1 = in spec, 0 = out of spec, NULL = not evaluated (no range / legacy rows).
+{
+  const mCols = db.prepare("PRAGMA table_info(MUESTRA)").all().map(c => c.name);
+  if (!mCols.includes("length_in_spec")) {
+    db.exec("ALTER TABLE MUESTRA ADD COLUMN length_in_spec INTEGER");
+  }
+}
+
 // Migration: rename wms_code → item_code and remove UNIQUE constraint.
 // SQLite does not support DROP CONSTRAINT so we recreate the table.
 // PRAGMA foreign_keys must be set outside any transaction.

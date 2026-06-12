@@ -1,4 +1,5 @@
 const db = require("./db");
+const sizeRanges = require("./sizeRanges");
 
 function getLotReportData(lot_no) {
   const lot = db.query(`SELECT * FROM LOT WHERE lot_no = ?`, [lot_no]);
@@ -48,6 +49,29 @@ function getLotReportData(lot_no) {
     [lot_no]
   );
 
+  const lengthSpecRow = db.query(
+    `SELECT
+       SUM(CASE WHEN length_in_spec IS NOT NULL THEN 1 ELSE 0 END) AS evaluated,
+       SUM(CASE WHEN length_in_spec = 1         THEN 1 ELSE 0 END) AS in_spec
+     FROM MUESTRA WHERE lot_no = ?`,
+    [lot_no]
+  );
+
+  const range = sizeRanges.getRangeForSize(lot[0].size);
+  const evaluated = lengthSpecRow[0]?.evaluated ?? 0;
+  const inSpec = lengthSpecRow[0]?.in_spec ?? 0;
+
+  const lengthSpec = {
+    range,
+    rangeLabel: range
+      ? `${range.length_min ?? "—"} – ${range.length_max ?? "—"} cm`
+      : "Not defined",
+    evaluated,
+    inSpec,
+    outOfSpec: evaluated - inSpec,
+    pct: evaluated > 0 ? ((inSpec / evaluated) * 100).toFixed(1) : "0.0",
+  };
+
   const sampleCount = summary[0]?.sample_count ?? 0;
 
   const defectsWithPct = defects.map((d) => ({
@@ -64,6 +88,7 @@ function getLotReportData(lot_no) {
     brokenBellyPoints: brokenBellyPoints.map((r) => r.break_point),
     gutsWeight: gutsWeight[0] ?? null,
     extraImages: extraImages.map((r) => r.image),
+    lengthSpec,
   };
 }
 

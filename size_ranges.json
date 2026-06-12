@@ -1,0 +1,7 @@
+{
+  "sizes": {
+    "TALL":   { "length_min": 18, "length_max": 30 },
+    "JITNEY": { "length_min": 12, "length_max": 18 },
+    "BUFFET": { "length_min": 8,  "length_max": 12 }
+  }
+}

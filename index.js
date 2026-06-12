@@ -12,6 +12,8 @@ const lot_tension = require("./services/tensionTest");
 const lot_guts   = require("./services/gutsWeight");
 const lotReport  = require("./services/lotReport");
 const pdfReport  = require("./services/pdfReport");
+const calibration = require("./services/calibrationHistory");
+const sizeRanges  = require("./services/sizeRanges");
 // const { v4: uuidv4 } = require('uuid'); // import uuid
 
 const app = express();
@@ -99,6 +101,33 @@ app.post("/add-lot-tension", (req, res) => {
 app.post("/add-guts-weight", (req, res) => {
   const result = lot_guts.create(req.body);
   res.json(result);
+});
+
+app.get("/size-ranges", (req, res) => {
+  res.json(sizeRanges.getRanges());
+});
+
+app.post("/size-ranges", (req, res) => {
+  try {
+    res.json(sizeRanges.saveRanges(req.body));
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "Failed to save size ranges" });
+  }
+});
+
+app.post("/add-calibration", (req, res) => {
+  const result = calibration.create(req.body);
+  res.json(result);
+});
+
+app.get("/calibration-history", (req, res) => {
+  res.json(calibration.getAll());
+});
+
+app.get("/calibration-history/:page", (req, res) => {
+  const page = req.params.page || 1;
+  res.json(calibration.getMultiple(page));
 });
 
 app.get("/lot_guts_weight/:lot_no", (req, res) => {
@@ -230,19 +259,28 @@ app.get("/download-lot-samples/:lot_no", async (req, res) => {
     // Una columna por defecto: 1 si presente, 0 si no
     const allDefects = muestra.getDefects();
 
+    // Acceptable length range for this lot's size
+    const range = sizeRanges.getRangeForSize(lotInfo.size);
+    const rangeLabel = range
+      ? `${range.length_min ?? "—"} - ${range.length_max ?? "—"}`
+      : "—";
+
     const baseHeaders = [
-      { header: "id",           key: "id" },
-      { header: "Lot #",        key: "lot_no" },
-      { header: "Fish Species", key: "fish_species" },
-      { header: "Type",         key: "type" },
-      { header: "Item Code",    key: "item_code" },
-      { header: "Order No",     key: "order_no" },
-      { header: "Supplier",     key: "supplier" },
-      { header: "Weight",       key: "weight" },
-      { header: "Length",       key: "length" },
-      { header: "Height",       key: "height" },
-      { header: "Date",         key: "sample_date" },
-      { header: "Time (KL)",    key: "sample_time" },
+      { header: "id",            key: "id" },
+      { header: "Lot #",         key: "lot_no" },
+      { header: "Fish Species",  key: "fish_species" },
+      { header: "Type",          key: "type" },
+      { header: "Size",          key: "size" },
+      { header: "Item Code",     key: "item_code" },
+      { header: "Order No",      key: "order_no" },
+      { header: "Supplier",      key: "supplier" },
+      { header: "Weight",        key: "weight" },
+      { header: "Length",        key: "length" },
+      { header: "Height",        key: "height" },
+      { header: "Length Range",  key: "length_range" },
+      { header: "Length In Spec", key: "length_in_spec" },
+      { header: "Date",          key: "sample_date" },
+      { header: "Time (KL)",     key: "sample_time" },
     ];
 
     const defectHeaders = allDefects.map(d => ({
@@ -270,9 +308,13 @@ app.get("/download-lot-samples/:lot_no", async (req, res) => {
         ...sample,
         fish_species: lotInfo.fish_species,
         type: lotInfo.type,
+        size: lotInfo.size,
         item_code: lotInfo.item_code,
         order_no: lotInfo.order_no,
         supplier: lotInfo.supplier,
+        length_range: rangeLabel,
+        // 1 = in spec, 0 = out of spec, blank = not evaluated (legacy / no range)
+        length_in_spec: sample.length_in_spec == null ? "" : sample.length_in_spec,
         sample_date,
         sample_time,
         ...defectCols,

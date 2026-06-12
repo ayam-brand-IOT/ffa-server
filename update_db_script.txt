@@ -1,0 +1,11 @@
+sqlite3 /app/data/ffa-server.sqlite <<'SQL'
+BEGIN;
+UPDATE DEFFECTS SET name='anisakis'      WHERE id=9;
+DELETE FROM DEFFECTS WHERE id=16;                      -- huérfano, libera 'oblique cut'
+UPDATE DEFFECTS SET name='oblique cut'   WHERE id=11;
+UPDATE DEFFECTS SET name='gillcut'       WHERE id=15;
+UPDATE DEFFECTS SET name='guts and roes' WHERE id=12;
+UPDATE DEFFECTS SET name='spike'         WHERE id=14;
+COMMIT;
+SQL
+

@@ -1,5 +1,6 @@
 const db = require("./db");
 const config = require("../config");
+const sizeRanges = require("./sizeRanges");
 
 function getMultiple(page = 1) {
   const offset = (page - 1) * config.listPerPage;
@@ -79,9 +80,15 @@ function create(muestra) {
   const date = new Date().toISOString();
   console.warn(muestra);
   const { image, weight, length, height, head_length, tail_trigger, defects, lot_no } = muestra;
+
+  // Evaluate the sample length against the acceptable range for the lot's size
+  const lotRow = db.query("SELECT size FROM LOT WHERE lot_no = ?", [lot_no]);
+  const size = lotRow.length ? lotRow[0].size : null;
+  const length_in_spec = sizeRanges.evaluateLength(size, length);
+
   const result = db.run(
-    "INSERT INTO MUESTRA (image, weight, length, height, date, head_length, tail_trigger, lot_no) VALUES (@image, @weight, @length, @height, @date, @head_length, @tail_trigger, @lot_no)",
-    { image, weight, length, height, date, head_length, tail_trigger, lot_no }
+    "INSERT INTO MUESTRA (image, weight, length, height, date, head_length, tail_trigger, lot_no, length_in_spec) VALUES (@image, @weight, @length, @height, @date, @head_length, @tail_trigger, @lot_no, @length_in_spec)",
+    { image, weight, length, height, date, head_length, tail_trigger, lot_no, length_in_spec }
   );
 
   let message = "Error in creating batch";
