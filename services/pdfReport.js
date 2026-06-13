@@ -89,6 +89,104 @@ function horizontalBar(doc, x, y, totalW, pct, color) {
   doc.rect(x, y, filled, 8).fill(color);
 }
 
+function lengthDistributionChart(doc, dist, range) {
+  const chartH = 150;
+  const padL = 34;   // room for y-axis labels
+  const padB = 28;   // room for x-axis labels
+  const plotX = MARGIN + padL;
+  const plotW = CONTENT - padL;
+  const topY = doc.y;
+  const plotH = chartH - padB;
+  const baseY = topY + plotH;
+
+  const span = dist.domainMax - dist.domainMin || 1;
+  const xPos = (v) => plotX + ((v - dist.domainMin) / span) * plotW;
+
+  // Plot background + frame
+  doc.rect(plotX, topY, plotW, plotH).fill(C.white).stroke(C.border);
+
+  // Acceptable spec band
+  if (range && (range.length_min != null || range.length_max != null)) {
+    const x0 = xPos(range.length_min != null ? range.length_min : dist.domainMin);
+    const x1 = xPos(range.length_max != null ? range.length_max : dist.domainMax);
+    doc.save();
+    doc.rect(x0, topY, x1 - x0, plotH).fillOpacity(0.12).fill(C.green);
+    doc.restore();
+    // Spec boundary lines
+    doc.save().dash(2, { space: 2 }).lineWidth(0.8).strokeColor(C.green);
+    if (range.length_min != null) doc.moveTo(x0, topY).lineTo(x0, baseY).stroke();
+    if (range.length_max != null) doc.moveTo(x1, topY).lineTo(x1, baseY).stroke();
+    doc.undash().restore();
+  }
+
+  // Y gridlines + labels (counts)
+  const yTicks = Math.min(4, dist.maxBinCount) || 1;
+  doc.font("Helvetica").fontSize(6).fillColor(C.muted);
+  for (let i = 0; i <= yTicks; i++) {
+    const val = Math.round((dist.maxBinCount * i) / yTicks);
+    const y = baseY - (i / yTicks) * plotH;
+    doc.save().lineWidth(0.4).strokeColor("#EEF1F7").moveTo(plotX, y).lineTo(plotX + plotW, y).stroke().restore();
+    doc.fillColor(C.muted).text(String(val), MARGIN, y - 3, { width: padL - 6, align: "right" });
+  }
+
+  // Histogram bars
+  dist.bins.forEach((b) => {
+    if (!b.count) return;
+    const bx = xPos(b.x0);
+    const bw = Math.max(1, xPos(b.x1) - xPos(b.x0) - 1.5);
+    const bh = (b.count / dist.maxBinCount) * plotH;
+    doc.rect(bx + 0.75, baseY - bh, bw, bh).fillOpacity(0.85).fill("#9FB6DC");
+    doc.fillOpacity(1);
+  });
+
+  // Fitted Gaussian curve (scaled so its peak reaches the top of the plot)
+  if (dist.curve.length && dist.maxCurveY > 0) {
+    doc.save().lineWidth(1.6).strokeColor(C.brand);
+    dist.curve.forEach((pt, i) => {
+      const px = xPos(pt.x);
+      const py = baseY - (pt.y / dist.maxCurveY) * plotH;
+      if (i === 0) doc.moveTo(px, py);
+      else doc.lineTo(px, py);
+    });
+    doc.stroke().restore();
+  }
+
+  // Mean line
+  const meanX = xPos(dist.mean);
+  doc.save().dash(3, { space: 2 }).lineWidth(1).strokeColor(C.accent)
+    .moveTo(meanX, topY).lineTo(meanX, baseY).stroke().undash().restore();
+
+  // X-axis ticks/labels
+  const xTicks = 6;
+  doc.font("Helvetica").fontSize(6).fillColor(C.muted);
+  for (let i = 0; i <= xTicks; i++) {
+    const val = dist.domainMin + (i / xTicks) * span;
+    const x = xPos(val);
+    doc.save().lineWidth(0.4).strokeColor(C.border).moveTo(x, baseY).lineTo(x, baseY + 3).stroke().restore();
+    doc.fillColor(C.muted).text(val.toFixed(0), x - 12, baseY + 5, { width: 24, align: "center" });
+  }
+  doc.font("Helvetica").fontSize(6.5).fillColor(C.muted)
+    .text("Fish Length (cm)", plotX, baseY + 15, { width: plotW, align: "center" });
+
+  // Legend
+  const legY = topY + 4;
+  let legX = plotX + 6;
+  const legendItem = (color, label, line) => {
+    if (line) {
+      doc.save().lineWidth(1.6).strokeColor(color).moveTo(legX, legY + 4).lineTo(legX + 12, legY + 4).stroke().restore();
+    } else {
+      doc.rect(legX, legY, 12, 8).fillOpacity(0.85).fill(color).fillOpacity(1);
+    }
+    doc.font("Helvetica").fontSize(6.5).fillColor(C.text).text(label, legX + 15, legY + 1);
+    legX += 15 + doc.widthOfString(label) + 14;
+  };
+  legendItem("#9FB6DC", "Samples", false);
+  legendItem(C.brand, "Normal fit", true);
+  legendItem(C.accent, `Mean ${dist.mean.toFixed(1)} cm`, true);
+
+  doc.y = baseY + padB + 6;
+}
+
 function addPageFooter(doc, reportDate, lotNo) {
   const bottom = PAGE_H - 30;
   doc
@@ -196,6 +294,29 @@ function generateLotPdf(data, uploadsPath) {
     doc.font("Helvetica-Bold").fontSize(8).fillColor(pctColor)
       .text(`${ls.pct}% within acceptable length range`, MARGIN, barY + 12);
     doc.y = barY + 28;
+    doc.moveDown(0.5);
+  }
+
+  // ── LENGTH DISTRIBUTION ───────────────────────────────────────────────────
+  if (data.lengthDistribution) {
+    // Needs ~200pt; break to a new page if it won't fit
+    if (doc.y + 210 > PAGE_H - 80) {
+      addPageFooter(doc, reportDate, data.lot.lot_no);
+      doc.addPage();
+      doc.y = MARGIN;
+    }
+    sectionTitle(doc, "Fish Length Distribution");
+    doc.moveDown(0.3);
+
+    const ld = data.lengthDistribution;
+    doc.font("Helvetica").fontSize(8).fillColor(C.muted)
+      .text(
+        `n = ${ld.count}   ·   Mean ${fmt(ld.mean)} cm   ·   Std Dev ${fmt(ld.std)} cm   ·   Range ${fmt(ld.min)}–${fmt(ld.max)} cm`,
+        MARGIN, doc.y
+      );
+    doc.moveDown(0.5);
+
+    lengthDistributionChart(doc, ld, data.lengthSpec ? data.lengthSpec.range : null);
     doc.moveDown(0.5);
   }
 
