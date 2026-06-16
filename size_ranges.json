@@ -1,7 +1,32 @@
 {
   "sizes": {
-    "TALL":   { "length_min": 18, "length_max": 30 },
-    "JITNEY": { "length_min": 12, "length_max": 18 },
-    "BUFFET": { "length_min": 8,  "length_max": 12 }
+    "TALL": {
+      "length_min": 10.0,
+      "length_max": 11.0
+    },
+    "BIG_OVAL": {
+      "length_min": 9.0,
+      "length_max": 13.5
+    },
+    "SMALL_OVAL": {
+      "length_min": 8.25,
+      "length_max": 12.5
+    },
+    "JITNEY": {
+      "length_min": 7.5,
+      "length_max": 8.75
+    },
+    "CLUB_CAN": {
+      "length_min": 7.0,
+      "length_max": 8.75
+    },
+    "BUFFET": {
+      "length_min": 6.5,
+      "length_max": 7.25
+    },
+    "TOWER": {
+      "length_min": 7.0,
+      "length_max": 9.5
+    }
   }
 }
