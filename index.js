@@ -265,8 +265,12 @@ app.get("/download-lot-samples/:lot_no", async (req, res) => {
       ? `${range.length_min ?? "—"} - ${range.length_max ?? "—"}`
       : "—";
 
+    // IT wants redundant measurement columns per fish type (for now WR & HGT):
+    // the sample's weight/length/height land in the columns matching the lot's
+    // type; the other type's columns stay blank.
+    const TYPE_COLUMNS = ["WR", "HGT"];
+
     const baseHeaders = [
-      { header: "id",            key: "id" },
       { header: "Lot #",         key: "lot_no" },
       { header: "Fish Species",  key: "fish_species" },
       { header: "Type",          key: "type" },
@@ -274,13 +278,23 @@ app.get("/download-lot-samples/:lot_no", async (req, res) => {
       { header: "Item Code",     key: "item_code" },
       { header: "Order No",      key: "order_no" },
       { header: "Supplier",      key: "supplier" },
-      { header: "Weight",        key: "weight" },
-      { header: "Length",        key: "length" },
-      { header: "Height",        key: "height" },
-      { header: "Length Range",  key: "length_range" },
+    ];
+
+    const typeMeasureHeaders = [];
+    TYPE_COLUMNS.forEach((t) => {
+      const k = t.toLowerCase();
+      typeMeasureHeaders.push(
+        { header: `${t} Weight`, key: `${k}_weight` },
+        { header: `${t} Length`, key: `${k}_length` },
+        { header: `${t} Height`, key: `${k}_height` },
+      );
+    });
+
+    const tailHeaders = [
+      { header: "Length Range",   key: "length_range" },
       { header: "Length In Spec", key: "length_in_spec" },
-      { header: "Date",          key: "sample_date" },
-      { header: "Time (KL)",     key: "sample_time" },
+      { header: "Date",           key: "sample_date" },
+      { header: "Time (KL)",      key: "sample_time" },
     ];
 
     const defectHeaders = allDefects.map(d => ({
@@ -288,7 +302,7 @@ app.get("/download-lot-samples/:lot_no", async (req, res) => {
       key: `def_${d.id}`,
     }));
 
-    const headers = [...baseHeaders, ...defectHeaders];
+    const headers = [...baseHeaders, ...typeMeasureHeaders, ...tailHeaders, ...defectHeaders];
 
     const { data } = muestra.getByLotNo(lot_no);
 
@@ -304,6 +318,17 @@ app.get("/download-lot-samples/:lot_no", async (req, res) => {
 
       const { date: sample_date, time: sample_time } = toKLParts(sample.date);
 
+      // Route the measurements into the column group matching the lot's type
+      const lotType = (lotInfo.type || "").trim().toUpperCase();
+      const typeMeasureCols = {};
+      TYPE_COLUMNS.forEach((t) => {
+        const k = t.toLowerCase();
+        const match = lotType === t;
+        typeMeasureCols[`${k}_weight`] = match ? sample.weight : "";
+        typeMeasureCols[`${k}_length`] = match ? sample.length : "";
+        typeMeasureCols[`${k}_height`] = match ? sample.height : "";
+      });
+
       return {
         ...sample,
         fish_species: lotInfo.fish_species,
@@ -312,6 +337,7 @@ app.get("/download-lot-samples/:lot_no", async (req, res) => {
         item_code: lotInfo.item_code,
         order_no: lotInfo.order_no,
         supplier: lotInfo.supplier,
+        ...typeMeasureCols,
         length_range: rangeLabel,
         // 1 = in spec, 0 = out of spec, blank = not evaluated (legacy / no range)
         length_in_spec: sample.length_in_spec == null ? "" : sample.length_in_spec,
