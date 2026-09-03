@@ -187,8 +187,14 @@ function lengthDistributionChart(doc, dist, range) {
   doc.y = baseY + padB + 6;
 }
 
-function addPageFooter(doc, reportDate, lotNo) {
+// The footer deliberately sits inside the bottom margin. PDFKit starts a new
+// page whenever text lands past that margin, so each footer used to append a
+// blank page; lifting the limit for the duration of the write avoids it.
+function addPageFooter(doc, reportDate, lotNo, pageNo, pageCount) {
   const bottom = PAGE_H - 30;
+  const savedBottomMargin = doc.page.margins.bottom;
+  doc.page.margins.bottom = 0;
+
   doc
     .moveTo(MARGIN, bottom).lineTo(PAGE_W - MARGIN, bottom)
     .stroke(C.border);
@@ -196,11 +202,13 @@ function addPageFooter(doc, reportDate, lotNo) {
     .font("Helvetica").fontSize(7).fillColor(C.muted)
     .text(
       `AYAM BRAND — Frozen Fish Analysis Report   |   Lot: ${lotNo}   |   Generated: ${reportDate}`,
-      MARGIN, bottom + 6, { width: CONTENT, align: "left" }
+      MARGIN, bottom + 6, { width: CONTENT, align: "left", lineBreak: false }
     )
-    .text(`Page ${doc.bufferedPageRange().start + doc.bufferedPageRange().count}`,
-      MARGIN, bottom + 6, { width: CONTENT, align: "right" }
+    .text(`Page ${pageNo} of ${pageCount}`,
+      MARGIN, bottom + 6, { width: CONTENT, align: "right", lineBreak: false }
     );
+
+  doc.page.margins.bottom = savedBottomMargin;
 }
 
 // ─── main export ─────────────────────────────────────────────────────────────
@@ -301,7 +309,6 @@ function generateLotPdf(data, uploadsPath) {
   if (data.lengthDistribution) {
     // Needs ~200pt; break to a new page if it won't fit
     if (doc.y + 210 > PAGE_H - 80) {
-      addPageFooter(doc, reportDate, data.lot.lot_no);
       doc.addPage();
       doc.y = MARGIN;
     }
@@ -335,17 +342,29 @@ function generateLotPdf(data, uploadsPath) {
     const pctW   = 40;
     const nameW  = CONTENT - barW - countW - pctW - 10;
 
-    // Table header
-    const hY = doc.y;
-    doc.rect(MARGIN, hY, CONTENT, rowH).fill(C.light).stroke(C.border);
-    doc.font("Helvetica-Bold").fontSize(7.5).fillColor(C.muted);
-    doc.text("DEFECT",        MARGIN + 6,                        hY + 5);
-    doc.text("DISTRIBUTION",  MARGIN + nameW + 6,                hY + 5);
-    doc.text("COUNT",         MARGIN + nameW + barW + 6,         hY + 5);
-    doc.text("% OF SAMPLES",  MARGIN + nameW + barW + countW + 6, hY + 5);
-    doc.y = hY + rowH;
+    // Redrawn whenever the table continues on a new page.
+    const drawHeader = () => {
+      const hY = doc.y;
+      doc.rect(MARGIN, hY, CONTENT, rowH).fill(C.light).stroke(C.border);
+      doc.font("Helvetica-Bold").fontSize(7.5).fillColor(C.muted);
+      doc.text("DEFECT",        MARGIN + 6,                        hY + 5);
+      doc.text("DISTRIBUTION",  MARGIN + nameW + 6,                hY + 5);
+      doc.text("COUNT",         MARGIN + nameW + barW + 6,         hY + 5);
+      doc.text("% OF SAMPLES",  MARGIN + nameW + barW + countW + 6, hY + 5);
+      doc.y = hY + rowH;
+    };
+    drawHeader();
 
     data.defects.forEach((d, i) => {
+      // A row drawn past the bottom margin makes PDFKit break the page by
+      // itself, once per text call, which scatters the table over blank
+      // pages. Break deliberately instead and repeat the header.
+      if (doc.y + rowH > PAGE_H - 80) {
+        doc.addPage();
+        doc.y = MARGIN;
+        drawHeader();
+      }
+
       const rY   = doc.y;
       const pct  = parseFloat(d.pct);
       const fill = i % 2 === 0 ? C.white : "#F7F9FF";
@@ -389,7 +408,6 @@ function generateLotPdf(data, uploadsPath) {
 
     // Needs ~140pt for title + summary + 4 table rows.
     if (doc.y + 140 > PAGE_H - 80) {
-      addPageFooter(doc, reportDate, data.lot.lot_no);
       doc.addPage();
       doc.y = MARGIN;
     }
@@ -438,6 +456,11 @@ function generateLotPdf(data, uploadsPath) {
     ];
 
     rows.forEach((r, i) => {
+      if (doc.y + rowH > PAGE_H - 80) {
+        doc.addPage();
+        doc.y = MARGIN;
+      }
+
       const rY   = doc.y;
       const pct  = r.prev == null ? 0 : r.prev;
       const fill = i % 2 === 0 ? C.white : "#F7F9FF";
@@ -485,7 +508,6 @@ function generateLotPdf(data, uploadsPath) {
 
       // Check page break
       if (y + imgH > PAGE_H - 80) {
-        addPageFooter(doc, reportDate, data.lot.lot_no);
         doc.addPage();
         rowStartY = MARGIN;
         col = 0;
@@ -515,7 +537,7 @@ function generateLotPdf(data, uploadsPath) {
   const range = doc.bufferedPageRange();
   for (let i = 0; i < range.count; i++) {
     doc.switchToPage(range.start + i);
-    addPageFooter(doc, reportDate, data.lot.lot_no);
+    addPageFooter(doc, reportDate, data.lot.lot_no, i + 1, range.count);
   }
 
   doc.flushPages();
