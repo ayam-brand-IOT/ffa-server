@@ -37,6 +37,23 @@ db.exec(`
   )
 `);
 
+// Anisakis inspection: one row per test run on a lot. A lot may be re-tested,
+// so history is kept and reports read the most recent row.
+db.exec(`
+  CREATE TABLE IF NOT EXISTS LOT_ANISAKIS (
+    id                    INTEGER PRIMARY KEY AUTOINCREMENT,
+    lot_no                STRING  NOT NULL REFERENCES LOT (lot_no) ON DELETE CASCADE,
+    fish_analyzed         INTEGER NOT NULL,
+    fish_with_guts        INTEGER NOT NULL DEFAULT 0,
+    fish_with_belly       INTEGER NOT NULL DEFAULT 0,
+    fish_with_embedded    INTEGER NOT NULL DEFAULT 0,
+    presence_guts         INTEGER NOT NULL DEFAULT 0,
+    presence_belly        INTEGER NOT NULL DEFAULT 0,
+    presence_embedded     INTEGER NOT NULL DEFAULT 0,
+    recorded_at           DATE    NOT NULL
+  )
+`);
+
 // Migration: record whether each sample's length met the size's acceptable range.
 // 1 = in spec, 0 = out of spec, NULL = not evaluated (no range / legacy rows).
 {

@@ -382,6 +382,87 @@ function generateLotPdf(data, uploadsPath) {
   ], 3);
   doc.moveDown(0.8);
 
+  // ── ANISAKIS INSPECTION ───────────────────────────────────────────────────
+  if (data.anisakis) {
+    const an = data.anisakis;
+    const m  = an.metrics;
+
+    // Needs ~140pt for title + summary + 4 table rows.
+    if (doc.y + 140 > PAGE_H - 80) {
+      addPageFooter(doc, reportDate, data.lot.lot_no);
+      doc.addPage();
+      doc.y = MARGIN;
+    }
+
+    sectionTitle(doc, "Anisakis Inspection");
+    doc.moveDown(0.3);
+
+    doc.font("Helvetica").fontSize(8).fillColor(C.muted)
+      .text(
+        `${an.fish_analyzed} fish analyzed   ·   Inspected ${dateStr(an.recorded_at)}   ·   ` +
+        `Prevalence = infected fish / fish analyzed   ·   Intensity = parasites found / infected fish`,
+        MARGIN, doc.y, { width: CONTENT }
+      );
+    doc.moveDown(0.6);
+
+    const rowH   = 18;
+    const siteW  = 120;
+    const infW   = 75;
+    const foundW = 75;
+    const barW   = 120;
+    const pctW   = 45;
+    const intW   = CONTENT - siteW - infW - foundW - barW - pctW;
+
+    const xSite  = MARGIN;
+    const xInf   = xSite + siteW;
+    const xFound = xInf + infW;
+    const xBar   = xFound + foundW;
+    const xPct   = xBar + barW;
+    const xInt   = xPct + pctW;
+
+    // Table header
+    const hY = doc.y;
+    doc.rect(MARGIN, hY, CONTENT, rowH).fill(C.light).stroke(C.border);
+    doc.font("Helvetica-Bold").fontSize(7.5).fillColor(C.muted);
+    doc.text("ANISAKIS IN",   xSite + 6,  hY + 5);
+    doc.text("FISH",          xInf + 6,   hY + 5, { width: infW - 12,   align: "right" });
+    doc.text("FOUND",         xFound + 6, hY + 5, { width: foundW - 12, align: "right" });
+    doc.text("PREVALENCE",    xBar + 6,   hY + 5);
+    doc.text("INTENSITY",     xInt,       hY + 5, { width: intW - 6,    align: "right" });
+    doc.y = hY + rowH;
+
+    const rows = [
+      { name: "Guts",     fish: an.fish_with_guts,     found: an.presence_guts,     prev: m.prevalence_guts,     int: m.intensity_guts },
+      { name: "Belly",    fish: an.fish_with_belly,    found: an.presence_belly,    prev: m.prevalence_belly,    int: m.intensity_belly },
+      { name: "Embedded", fish: an.fish_with_embedded, found: an.presence_embedded, prev: m.prevalence_embedded, int: m.intensity_embedded },
+    ];
+
+    rows.forEach((r, i) => {
+      const rY   = doc.y;
+      const pct  = r.prev == null ? 0 : r.prev;
+      const fill = i % 2 === 0 ? C.white : "#F7F9FF";
+      doc.rect(MARGIN, rY, CONTENT, rowH).fill(fill).stroke(C.border);
+
+      const barColor = pct > 30 ? C.red : pct > 10 ? C.accent : C.green;
+
+      doc.font("Helvetica").fontSize(8).fillColor(C.text)
+        .text(r.name, xSite + 6, rY + 5, { width: siteW - 12 });
+      doc.text(String(r.fish ?? 0),  xInf + 6,   rY + 5, { width: infW - 12,   align: "right" });
+      doc.text(String(r.found ?? 0), xFound + 6, rY + 5, { width: foundW - 12, align: "right" });
+
+      horizontalBar(doc, xBar + 6, rY + 5, barW - 12, pct, barColor);
+
+      doc.font("Helvetica-Bold").fontSize(8).fillColor(barColor)
+        .text(r.prev == null ? "—" : `${fmt(r.prev)}%`, xPct, rY + 5, { width: pctW - 6, align: "right" });
+      doc.font("Helvetica").fontSize(8).fillColor(C.text)
+        .text(r.int == null ? "—" : fmt(r.int, 2), xInt, rY + 5, { width: intW - 6, align: "right" });
+
+      doc.y = rY + rowH;
+    });
+
+    doc.moveDown(0.8);
+  }
+
   // ── EXTRA IMAGES ─────────────────────────────────────────────────────────
   if (data.extraImages.length > 0) {
     sectionTitle(doc, `Other Findings Images  (${data.extraImages.length})`);

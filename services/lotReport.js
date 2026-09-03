@@ -1,5 +1,6 @@
 const db = require("./db");
 const sizeRanges = require("./sizeRanges");
+const anisakisService = require("./anisakis");
 
 // Build a histogram of fish lengths plus the fitted normal (Gaussian) curve.
 // Returns null when there is not enough data to draw a meaningful chart.
@@ -113,6 +114,9 @@ function getLotReportData(lot_no) {
     [lot_no]
   );
 
+  // Most recent anisakis inspection, with prevalence/intensity derived from it.
+  const anisakis = anisakisService.getLatestFrom(lot_no);
+
   const extraImages = db.query(
     `SELECT image FROM LOT_IMAGE WHERE lot_no = ?`,
     [lot_no]
@@ -165,6 +169,7 @@ function getLotReportData(lot_no) {
     brokenBelly: brokenBelly[0] ?? { test_count: 0, avg_break_point: 0 },
     brokenBellyPoints: brokenBellyPoints.map((r) => r.break_point),
     gutsWeight: gutsWeight[0] ?? null,
+    anisakis,
     extraImages: extraImages.map((r) => r.image),
     lengthSpec,
     lengthDistribution,

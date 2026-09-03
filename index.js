@@ -10,6 +10,7 @@ const muestra = require("./services/muestras");
 const lot_image = require("./services/extraImages");
 const lot_tension = require("./services/tensionTest");
 const lot_guts   = require("./services/gutsWeight");
+const lot_anisakis = require("./services/anisakis");
 const lotReport  = require("./services/lotReport");
 const pdfReport  = require("./services/pdfReport");
 const calibration = require("./services/calibrationHistory");
@@ -61,7 +62,7 @@ function toKLParts(isoString) {
   return { date, time };
 }
 
-async function generateExcelFile(data, headers) {
+async function generateExcelFile(data, headers, anisakis) {
   const workbook = new Excel.Workbook();
   const worksheet = workbook.addWorksheet("My Sheet");
 
@@ -69,9 +70,76 @@ async function generateExcelFile(data, headers) {
   
   data.forEach((row) => worksheet.addRow(row));
 
+  // Anisakis is measured once per lot, not per sample, so it gets its own sheet
+  // instead of repeating identical values on every fish row.
+  if (anisakis) addAnisakisSheet(workbook, anisakis);
+
   const filePath = path.join(__dirname, "data.xlsx");
   await workbook.xlsx.writeFile(filePath);
   return filePath;
+}
+
+// Lays out the anisakis results in the same shape as the source analysis
+// workbook: raw inputs on the left, derived metrics on the right, and a
+// summary table underneath.
+function addAnisakisSheet(workbook, anisakis) {
+  const ws = workbook.addWorksheet("Anisakis");
+  const m  = anisakis.metrics;
+  const num = (v, decimals) => (v == null ? "N/A" : Number(v.toFixed(decimals)));
+
+  ws.columns = [
+    { width: 38 }, { width: 10 }, { width: 4 },
+    { width: 26 }, { width: 12 }, { width: 12 },
+  ];
+
+  const bold = (cell) => { cell.font = { bold: true }; };
+
+  bold(ws.getCell("A1"));  ws.getCell("A1").value = "User Input:";
+  bold(ws.getCell("D1"));  ws.getCell("D1").value = "Calculation";
+  bold(ws.getCell("E1"));  ws.getCell("E1").value = "Result";
+
+  const inputs = [
+    ["Total Nb of fish with anisakis in Guts",     anisakis.fish_with_guts],
+    ["Total Nb of fish with Anisakis in Belly",    anisakis.fish_with_belly],
+    ["Total Nb of fish with Anisakis in Embedded", anisakis.fish_with_embedded],
+    ["Nb of Anisakis Presence In Guts",            anisakis.presence_guts],
+    ["Nb of Anisakis Presence in Belly",           anisakis.presence_belly],
+    ["Nb of Anisakis Presence in Embedded",        anisakis.presence_embedded],
+  ];
+  inputs.forEach(([label, value], i) => {
+    ws.getCell(`A${i + 2}`).value = label;
+    ws.getCell(`B${i + 2}`).value = value ?? 0;
+  });
+
+  const calcs = [
+    ["Nb fish analyzed",         anisakis.fish_analyzed],
+    ["Prevalence in Guts (%)",     num(m.prevalence_guts, 2)],
+    ["Prevalence in Belly (%)",    num(m.prevalence_belly, 2)],
+    ["Prevalence in Embedded (%)", num(m.prevalence_embedded, 2)],
+    ["Intensity in Guts",          num(m.intensity_guts, 4)],
+    ["Intensity in Belly",         num(m.intensity_belly, 4)],
+    ["Intensity in Embedded",      num(m.intensity_embedded, 4)],
+  ];
+  calcs.forEach(([label, value], i) => {
+    ws.getCell(`D${i + 2}`).value = label;
+    ws.getCell(`E${i + 2}`).value = value;
+  });
+
+  bold(ws.getCell("D11")); ws.getCell("D11").value = "Report:";
+  ["Anisakis in", "Prevalence", "Intensity"].forEach((h, i) => {
+    const cell = ws.getCell(12, 4 + i);
+    cell.value = h;
+    bold(cell);
+  });
+
+  const report = [
+    ["Anisakis in Guts",     num(m.prevalence_guts, 2),     num(m.intensity_guts, 4)],
+    ["Anisakis in Belly",    num(m.prevalence_belly, 2),    num(m.intensity_belly, 4)],
+    ["Anisakis in Embedded", num(m.prevalence_embedded, 2), num(m.intensity_embedded, 4)],
+  ];
+  report.forEach((row, r) => {
+    row.forEach((value, c) => { ws.getCell(13 + r, 4 + c).value = value; });
+  });
 }
 
 // POST handler for adding data with image upload
@@ -100,6 +168,11 @@ app.post("/add-lot-tension", (req, res) => {
 
 app.post("/add-guts-weight", (req, res) => {
   const result = lot_guts.create(req.body);
+  res.json(result);
+});
+
+app.post("/add-anisakis", (req, res) => {
+  const result = lot_anisakis.create(req.body);
   res.json(result);
 });
 
@@ -138,6 +211,14 @@ app.get("/lot_guts_weight/:lot_no", (req, res) => {
 app.get("/lot_guts_weight_latest/:lot_no", (req, res) => {
   const data = lot_guts.getLatestFrom(req.params.lot_no);
   res.json(data ?? {});
+});
+
+app.get("/lot_anisakis/:lot_no", (req, res) => {
+  res.json(lot_anisakis.getAllFrom(req.params.lot_no));
+});
+
+app.get("/lot_anisakis_latest/:lot_no", (req, res) => {
+  res.json(lot_anisakis.getLatestFrom(req.params.lot_no) ?? {});
 });
 
 app.get("/history/:page", (req, res) => {
@@ -347,7 +428,8 @@ app.get("/download-lot-samples/:lot_no", async (req, res) => {
       };
     });
 
-    const filePath = await generateExcelFile(enrichedData, headers);
+    const anisakisRow = lot_anisakis.getLatestFrom(lot_no);
+    const filePath = await generateExcelFile(enrichedData, headers, anisakisRow);
     const datePrefix = new Date().toISOString().slice(0, 10).replace(/-/g, "");
     const filename = `${datePrefix}_${lot_no}.xlsx`;
 
