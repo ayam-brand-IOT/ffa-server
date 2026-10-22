@@ -120,6 +120,26 @@ function create(muestra) {
 //   return { data };
 // }
 
+// Re-evaluate every stored sample against the current ranges. Used once after
+// the ranges moved from centimetres to millimetres: samples saved before were
+// compared with centimetre limits and nearly all came out "out of spec".
+function reevaluateLengthSpec() {
+  const ranges = sizeRanges.getRanges();
+  const rows = db.query(
+    "SELECT m.id, m.length, m.length_in_spec, l.size FROM MUESTRA m LEFT JOIN LOT l ON l.lot_no = m.lot_no",
+    []
+  );
+  let changed = 0;
+  rows.forEach((row) => {
+    const spec = sizeRanges.evaluateLength(row.size, row.length, ranges);
+    if (spec !== row.length_in_spec) {
+      db.run("UPDATE MUESTRA SET length_in_spec = @spec WHERE id = @id", { spec, id: row.id });
+      changed += 1;
+    }
+  });
+  return { evaluated: rows.length, changed };
+}
+
 function remove(id) {
   db.run("DELETE FROM MUESTRA_DEFECT WHERE muestra_id = @id", { id });
   db.run("DELETE FROM MUESTRA WHERE id = @id", { id });
@@ -139,4 +159,5 @@ module.exports = {
   getAllFrom,
   getByLotNo,
   getDefects,
+  reevaluateLengthSpec,
 };

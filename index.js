@@ -449,4 +449,10 @@ app.get("/download-lot-samples/:lot_no", async (req, res) => {
 });
 
 // Start the server
+// Size ranges moved from centimetres to millimetres (2026-10-22).
+if (sizeRanges.migrate()) {
+  const result = muestra.reevaluateLengthSpec();
+  console.log(`Size ranges converted to mm; length_in_spec re-evaluated: ${JSON.stringify(result)}`);
+}
+
 app.listen(port, () => console.log(`Server running on port ${port}`));

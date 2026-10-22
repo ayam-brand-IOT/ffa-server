@@ -139,14 +139,14 @@ function getLotReportData(lot_no) {
     [lot_no]
   );
   const lengthDistribution = buildLengthDistribution(
-    lengthRows.map((r) => Number(r.length)).filter((n) => Number.isFinite(n)),
+    lengthRows.map((r) => Number(r.length)).filter((n) => Number.isFinite(n) && n > 0),
     range
   );
 
   const lengthSpec = {
     range,
     rangeLabel: range
-      ? `${range.length_min ?? "—"} – ${range.length_max ?? "—"} cm`
+      ? `${range.length_min ?? "—"} – ${range.length_max ?? "—"} mm`
       : "Not defined",
     evaluated,
     inSpec,

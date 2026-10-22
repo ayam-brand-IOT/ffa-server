@@ -166,7 +166,7 @@ function lengthDistributionChart(doc, dist, range) {
     doc.fillColor(C.muted).text(val.toFixed(0), x - 12, baseY + 5, { width: 24, align: "center" });
   }
   doc.font("Helvetica").fontSize(6.5).fillColor(C.muted)
-    .text("Fish Length (cm)", plotX, baseY + 15, { width: plotW, align: "center" });
+    .text("Fish Length (mm)", plotX, baseY + 15, { width: plotW, align: "center" });
 
   // Legend
   const legY = topY + 4;
@@ -182,7 +182,7 @@ function lengthDistributionChart(doc, dist, range) {
   };
   legendItem("#9FB6DC", "Samples", false);
   legendItem(C.brand, "Normal fit", true);
-  legendItem(C.accent, `Mean ${dist.mean.toFixed(1)} cm`, true);
+  legendItem(C.accent, `Mean ${dist.mean.toFixed(1)} mm`, true);
 
   doc.y = baseY + padB + 6;
 }
@@ -276,8 +276,8 @@ function generateLotPdf(data, uploadsPath) {
 
   statBox(doc, MARGIN,                 bY, boxW - 2, boxH, "Samples",       String(data.summary.sample_count));
   statBox(doc, MARGIN + boxW,          bY, boxW - 2, boxH, "Avg Weight",    fmt(data.summary.avg_weight),  "g");
-  statBox(doc, MARGIN + boxW * 2,      bY, boxW - 2, boxH, "Avg Length",    fmt(data.summary.avg_length),  "cm");
-  statBox(doc, MARGIN + boxW * 3,      bY, boxW - 2, boxH, "Avg Height",    fmt(data.summary.avg_height),  "cm");
+  statBox(doc, MARGIN + boxW * 2,      bY, boxW - 2, boxH, "Avg Length",    fmt(data.summary.avg_length),  "mm");
+  statBox(doc, MARGIN + boxW * 3,      bY, boxW - 2, boxH, "Avg Height",    fmt(data.summary.avg_height),  "mm");
   statBox(doc, MARGIN + boxW * 4,      bY, boxW - 2, boxH, "Guts Weight",   gutsW);
 
   doc.y = bY + boxH + 14;
@@ -318,7 +318,7 @@ function generateLotPdf(data, uploadsPath) {
     const ld = data.lengthDistribution;
     doc.font("Helvetica").fontSize(8).fillColor(C.muted)
       .text(
-        `n = ${ld.count}   ·   Mean ${fmt(ld.mean)} cm   ·   Std Dev ${fmt(ld.std)} cm   ·   Range ${fmt(ld.min)}–${fmt(ld.max)} cm`,
+        `n = ${ld.count}   ·   Mean ${fmt(ld.mean)} mm   ·   Std Dev ${fmt(ld.std)} mm   ·   Range ${fmt(ld.min)}–${fmt(ld.max)} mm`,
         MARGIN, doc.y
       );
     doc.moveDown(0.5);
