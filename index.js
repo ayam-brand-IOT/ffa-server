@@ -99,6 +99,9 @@ function addAnisakisSheet(workbook, anisakis) {
   bold(ws.getCell("E1"));  ws.getCell("E1").value = "Result";
 
   const inputs = [
+    ["Nb of fish analyzed in Guts",                m.fish_analyzed_guts],
+    ["Nb of fish analyzed in Belly",               m.fish_analyzed_belly],
+    ["Nb of fish analyzed in Embedded",            m.fish_analyzed_embedded],
     ["Total Nb of fish with anisakis in Guts",     anisakis.fish_with_guts],
     ["Total Nb of fish with Anisakis in Belly",    anisakis.fish_with_belly],
     ["Total Nb of fish with Anisakis in Embedded", anisakis.fish_with_embedded],
@@ -112,7 +115,6 @@ function addAnisakisSheet(workbook, anisakis) {
   });
 
   const calcs = [
-    ["Nb fish analyzed",         anisakis.fish_analyzed],
     ["Prevalence in Guts (%)",     num(m.prevalence_guts, 2)],
     ["Prevalence in Belly (%)",    num(m.prevalence_belly, 2)],
     ["Prevalence in Embedded (%)", num(m.prevalence_embedded, 2)],
@@ -125,9 +127,9 @@ function addAnisakisSheet(workbook, anisakis) {
     ws.getCell(`E${i + 2}`).value = value;
   });
 
-  bold(ws.getCell("D11")); ws.getCell("D11").value = "Report:";
+  bold(ws.getCell("D12")); ws.getCell("D12").value = "Report:";
   ["Anisakis in", "Prevalence", "Intensity"].forEach((h, i) => {
-    const cell = ws.getCell(12, 4 + i);
+    const cell = ws.getCell(13, 4 + i);
     cell.value = h;
     bold(cell);
   });
@@ -138,7 +140,7 @@ function addAnisakisSheet(workbook, anisakis) {
     ["Anisakis in Embedded", num(m.prevalence_embedded, 2), num(m.intensity_embedded, 4)],
   ];
   report.forEach((row, r) => {
-    row.forEach((value, c) => { ws.getCell(13 + r, 4 + c).value = value; });
+    row.forEach((value, c) => { ws.getCell(14 + r, 4 + c).value = value; });
   });
 }
 

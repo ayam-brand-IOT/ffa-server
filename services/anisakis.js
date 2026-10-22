@@ -1,14 +1,23 @@
 const db = require("./db");
 
+const SITES = ["guts", "belly", "embedded"];
+
 const toInt = (v) => {
   const n = parseInt(v, 10);
   return Number.isFinite(n) && n >= 0 ? n : 0;
 };
 
+// Fish analyzed at one site. Inspections saved before the per-site counts
+// existed only have the overall fish_analyzed.
+function analyzedAt(row, site) {
+  const value = row[`fish_analyzed_${site}`];
+  return value == null ? toInt(row.fish_analyzed) : toInt(value);
+}
+
 /**
- * Derived anisakis statistics.
+ * Derived anisakis statistics, per site.
  *
- *   Prevalence (%) = fish carrying anisakis in that site / fish analyzed * 100
+ *   Prevalence (%) = fish carrying anisakis in that site / fish analyzed in that site * 100
  *   Intensity      = anisakis found in that site / fish carrying anisakis there
  *
  * Intensity is the mean parasite load among *infected* fish only, so it is
@@ -18,59 +27,57 @@ const toInt = (v) => {
 function computeMetrics(row) {
   if (!row) return null;
 
-  const analyzed = toInt(row.fish_analyzed);
-  const prevalence = (withAnisakis) =>
-    analyzed > 0 ? (toInt(withAnisakis) / analyzed) * 100 : null;
-  const intensity = (presence, withAnisakis) =>
-    toInt(withAnisakis) > 0 ? toInt(presence) / toInt(withAnisakis) : null;
-
-  return {
-    fish_analyzed: analyzed,
-    prevalence_guts:     prevalence(row.fish_with_guts),
-    prevalence_belly:    prevalence(row.fish_with_belly),
-    prevalence_embedded: prevalence(row.fish_with_embedded),
-    intensity_guts:     intensity(row.presence_guts,     row.fish_with_guts),
-    intensity_belly:    intensity(row.presence_belly,    row.fish_with_belly),
-    intensity_embedded: intensity(row.presence_embedded, row.fish_with_embedded),
-  };
+  const metrics = { fish_analyzed: toInt(row.fish_analyzed) };
+  SITES.forEach((site) => {
+    const analyzed = analyzedAt(row, site);
+    const infected = toInt(row[`fish_with_${site}`]);
+    metrics[`fish_analyzed_${site}`] = analyzed;
+    metrics[`prevalence_${site}`] = analyzed > 0 ? (infected / analyzed) * 100 : null;
+    metrics[`intensity_${site}`] =
+      infected > 0 ? toInt(row[`presence_${site}`]) / infected : null;
+  });
+  return metrics;
 }
 
 function create(data) {
-  const {
-    lot_no,
-    fish_analyzed,
-    fish_with_guts,
-    fish_with_belly,
-    fish_with_embedded,
-    presence_guts,
-    presence_belly,
-    presence_embedded,
-  } = data;
-
+  const { lot_no } = data;
   if (!lot_no) return { message: "Error saving anisakis test: lot_no is required" };
 
-  const analyzed = toInt(fish_analyzed);
-  if (analyzed <= 0) {
+  // Per-site counts; a client that still sends one total applies it to all.
+  const analyzed = {};
+  SITES.forEach((site) => {
+    const value = data[`fish_analyzed_${site}`];
+    analyzed[site] = toInt(value == null || value === "" ? data.fish_analyzed : value);
+  });
+  const overall = Math.max(...SITES.map((site) => analyzed[site]));
+  if (overall <= 0) {
     return { message: "Error saving anisakis test: fish analyzed must be greater than 0" };
   }
 
   const recorded_at = new Date().toISOString();
   const result = db.run(
     `INSERT INTO LOT_ANISAKIS
-       (lot_no, fish_analyzed, fish_with_guts, fish_with_belly, fish_with_embedded,
+       (lot_no, fish_analyzed,
+        fish_analyzed_guts, fish_analyzed_belly, fish_analyzed_embedded,
+        fish_with_guts, fish_with_belly, fish_with_embedded,
         presence_guts, presence_belly, presence_embedded, recorded_at)
      VALUES
-       (@lot_no, @fish_analyzed, @fish_with_guts, @fish_with_belly, @fish_with_embedded,
+       (@lot_no, @fish_analyzed,
+        @fish_analyzed_guts, @fish_analyzed_belly, @fish_analyzed_embedded,
+        @fish_with_guts, @fish_with_belly, @fish_with_embedded,
         @presence_guts, @presence_belly, @presence_embedded, @recorded_at)`,
     {
       lot_no,
-      fish_analyzed: analyzed,
-      fish_with_guts:     toInt(fish_with_guts),
-      fish_with_belly:    toInt(fish_with_belly),
-      fish_with_embedded: toInt(fish_with_embedded),
-      presence_guts:      toInt(presence_guts),
-      presence_belly:     toInt(presence_belly),
-      presence_embedded:  toInt(presence_embedded),
+      fish_analyzed: overall,
+      fish_analyzed_guts:     analyzed.guts,
+      fish_analyzed_belly:    analyzed.belly,
+      fish_analyzed_embedded: analyzed.embedded,
+      fish_with_guts:     toInt(data.fish_with_guts),
+      fish_with_belly:    toInt(data.fish_with_belly),
+      fish_with_embedded: toInt(data.fish_with_embedded),
+      presence_guts:      toInt(data.presence_guts),
+      presence_belly:     toInt(data.presence_belly),
+      presence_embedded:  toInt(data.presence_embedded),
       recorded_at,
     }
   );

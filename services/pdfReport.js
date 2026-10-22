@@ -417,8 +417,8 @@ function generateLotPdf(data, uploadsPath) {
 
     doc.font("Helvetica").fontSize(8).fillColor(C.muted)
       .text(
-        `${an.fish_analyzed} fish analyzed   ·   Inspected ${dateStr(an.recorded_at)}   ·   ` +
-        `Prevalence = infected fish / fish analyzed   ·   Intensity = parasites found / infected fish`,
+        `Inspected ${dateStr(an.recorded_at)}   ·   Fish = infected / analyzed in that site   ·   ` +
+        `Prevalence = infected / analyzed   ·   Intensity = found / infected`,
         MARGIN, doc.y, { width: CONTENT }
       );
     doc.moveDown(0.6);
@@ -450,9 +450,9 @@ function generateLotPdf(data, uploadsPath) {
     doc.y = hY + rowH;
 
     const rows = [
-      { name: "Guts",     fish: an.fish_with_guts,     found: an.presence_guts,     prev: m.prevalence_guts,     int: m.intensity_guts },
-      { name: "Belly",    fish: an.fish_with_belly,    found: an.presence_belly,    prev: m.prevalence_belly,    int: m.intensity_belly },
-      { name: "Embedded", fish: an.fish_with_embedded, found: an.presence_embedded, prev: m.prevalence_embedded, int: m.intensity_embedded },
+      { name: "Guts",     fish: an.fish_with_guts,     analyzed: m.fish_analyzed_guts,     found: an.presence_guts,     prev: m.prevalence_guts,     int: m.intensity_guts },
+      { name: "Belly",    fish: an.fish_with_belly,    analyzed: m.fish_analyzed_belly,    found: an.presence_belly,    prev: m.prevalence_belly,    int: m.intensity_belly },
+      { name: "Embedded", fish: an.fish_with_embedded, analyzed: m.fish_analyzed_embedded, found: an.presence_embedded, prev: m.prevalence_embedded, int: m.intensity_embedded },
     ];
 
     rows.forEach((r, i) => {
@@ -470,10 +470,10 @@ function generateLotPdf(data, uploadsPath) {
 
       doc.font("Helvetica").fontSize(8).fillColor(C.text)
         .text(r.name, xSite + 6, rY + 5, { width: siteW - 12 });
-      doc.text(String(r.fish ?? 0),  xInf + 6,   rY + 5, { width: infW - 12,   align: "right" });
+      doc.text(`${r.fish ?? 0} / ${r.analyzed ?? 0}`, xInf + 6, rY + 5, { width: infW - 12, align: "right" });
       doc.text(String(r.found ?? 0), xFound + 6, rY + 5, { width: foundW - 12, align: "right" });
 
-      horizontalBar(doc, xBar + 6, rY + 5, barW - 12, pct, barColor);
+      horizontalBar(doc, xBar + 6, rY + 5, barW - 12, Math.min(pct, 100), barColor);
 
       doc.font("Helvetica-Bold").fontSize(8).fillColor(barColor)
         .text(r.prev == null ? "—" : `${fmt(r.prev)}%`, xPct, rY + 5, { width: pctW - 6, align: "right" });

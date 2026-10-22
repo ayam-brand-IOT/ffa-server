@@ -54,6 +54,18 @@ db.exec(`
   )
 `);
 
+// Migration: QA counts the fish analyzed per site (guts, belly, embedded)
+// instead of one total. Rows saved before keep NULL and fall back to
+// fish_analyzed, which is kept as the largest of the three.
+{
+  const aCols = db.prepare("PRAGMA table_info(LOT_ANISAKIS)").all().map(c => c.name);
+  ["guts", "belly", "embedded"].forEach((site) => {
+    if (!aCols.includes(`fish_analyzed_${site}`)) {
+      db.exec(`ALTER TABLE LOT_ANISAKIS ADD COLUMN fish_analyzed_${site} INTEGER`);
+    }
+  });
+}
+
 // Migration: record whether each sample's length met the size's acceptable range.
 // 1 = in spec, 0 = out of spec, NULL = not evaluated (no range / legacy rows).
 {
