@@ -1,5 +1,5 @@
 const db = require("./db");
-const sizeRanges = require("./sizeRanges");
+const sizeClasses = require("./sizeClasses");
 const anisakisService = require("./anisakis");
 
 // Build a histogram of fish lengths plus the fitted normal (Gaussian) curve.
@@ -71,6 +71,49 @@ function buildLengthDistribution(values, range) {
   };
 }
 
+// How many fish fell in each size (by weight) and which size predominates,
+// so production can pick the cuts. Rejected fish are counted apart and do
+// not compete for the predominant size.
+function buildSizeDistribution(rows) {
+  const classes = sizeClasses.getClasses();
+  const labels = sizeClasses.rangeLabels(classes);
+  const order = [...sizeClasses.SIZES, sizeClasses.REJECTED];
+  const counts = Object.fromEntries(order.map((size) => [size, 0]));
+
+  let unclassified = 0;
+  rows.forEach((row) => {
+    // Stored at capture time; a sample saved without it is sized now.
+    const size = row.size || sizeClasses.classify(row.weight, classes);
+    if (size && size in counts) counts[size]++;
+    else unclassified++;
+  });
+
+  const total = order.reduce((sum, size) => sum + counts[size], 0);
+  const rejected = counts[sizeClasses.REJECTED];
+  const accepted = total - rejected;
+  const best = Math.max(0, ...sizeClasses.SIZES.map((size) => counts[size]));
+  const predominant = best > 0 ? sizeClasses.SIZES.filter((size) => counts[size] === best) : [];
+  const pct = (n, of) => (of > 0 ? (n / of) * 100 : 0);
+
+  return {
+    total,
+    accepted,
+    rejected,
+    rejectedPct: pct(rejected, total),
+    unclassified,
+    predominant,
+    predominantPct: pct(best, total),
+    sizes: order.map((size) => ({
+      size,
+      range: labels[size],
+      count: counts[size],
+      pct: pct(counts[size], total),
+      rejected: size === sizeClasses.REJECTED,
+      predominant: predominant.includes(size),
+    })),
+  };
+}
+
 function getLotReportData(lot_no) {
   const lot = db.query(`SELECT * FROM LOT WHERE lot_no = ?`, [lot_no]);
   if (!lot.length) return null;
@@ -122,37 +165,18 @@ function getLotReportData(lot_no) {
     [lot_no]
   );
 
-  const lengthSpecRow = db.query(
-    `SELECT
-       SUM(CASE WHEN length_in_spec IS NOT NULL THEN 1 ELSE 0 END) AS evaluated,
-       SUM(CASE WHEN length_in_spec = 1         THEN 1 ELSE 0 END) AS in_spec
-     FROM MUESTRA WHERE lot_no = ?`,
-    [lot_no]
-  );
-
-  const range = sizeRanges.getRangeForSize(lot[0].size);
-  const evaluated = lengthSpecRow[0]?.evaluated ?? 0;
-  const inSpec = lengthSpecRow[0]?.in_spec ?? 0;
-
   const lengthRows = db.query(
     `SELECT length FROM MUESTRA WHERE lot_no = ? AND length IS NOT NULL`,
     [lot_no]
   );
   const lengthDistribution = buildLengthDistribution(
     lengthRows.map((r) => Number(r.length)).filter((n) => Number.isFinite(n) && n > 0),
-    range
+    null
   );
 
-  const lengthSpec = {
-    range,
-    rangeLabel: range
-      ? `${range.length_min ?? "—"} – ${range.length_max ?? "—"} mm`
-      : "Not defined",
-    evaluated,
-    inSpec,
-    outOfSpec: evaluated - inSpec,
-    pct: evaluated > 0 ? ((inSpec / evaluated) * 100).toFixed(1) : "0.0",
-  };
+  const sizeDistribution = buildSizeDistribution(
+    db.query(`SELECT size, weight FROM MUESTRA WHERE lot_no = ?`, [lot_no])
+  );
 
   const sampleCount = summary[0]?.sample_count ?? 0;
 
@@ -171,7 +195,7 @@ function getLotReportData(lot_no) {
     gutsWeight: gutsWeight[0] ?? null,
     anisakis,
     extraImages: extraImages.map((r) => r.image),
-    lengthSpec,
+    sizeDistribution,
     lengthDistribution,
   };
 }

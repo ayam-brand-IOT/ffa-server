@@ -24,8 +24,11 @@ function getMultiple(page = 1) {
     return { data, meta };
 }
 
+// Lots no longer carry a size (each fish is sized by its weight); the old
+// NOT NULL column is kept and stored empty.
 function add(lot){
-    const { supplier, lot_no, production_date, fish_species, type, size, order_no, item_code} = lot;
+    const { supplier, lot_no, production_date, fish_species, type, order_no, item_code} = lot;
+    const size = lot.size ?? "";
     const result = db.run(
         "INSERT INTO LOT (supplier, lot_no, production_date, fish_species, type, size, order_no, item_code) VALUES (@supplier, @lot_no, @production_date, @fish_species, @type, @size, @order_no, @item_code)",
         { supplier, lot_no, production_date, fish_species, type, size, order_no, item_code }
@@ -36,7 +39,8 @@ function add(lot){
 }
 
 function edit(lot) {
-    const { supplier, lot_no, production_date, fish_species, type, size, order_no, item_code} = lot;
+    const { supplier, lot_no, production_date, fish_species, type, order_no, item_code} = lot;
+    const size = lot.size ?? "";
     const result = db.run(
         "UPDATE LOT SET supplier = @supplier, production_date = @production_date, fish_species = @fish_species, type = @type, size = @size, order_no = @order_no, item_code = @item_code WHERE lot_no = @lot_no",
         { supplier, production_date, fish_species, type, size, order_no, item_code, lot_no }

@@ -1,6 +1,6 @@
 const db = require("./db");
 const config = require("../config");
-const sizeRanges = require("./sizeRanges");
+const sizeClasses = require("./sizeClasses");
 
 function getMultiple(page = 1) {
   const offset = (page - 1) * config.listPerPage;
@@ -81,14 +81,12 @@ function create(muestra) {
   console.warn(muestra);
   const { image, weight, length, height, head_length, tail_trigger, defects, lot_no } = muestra;
 
-  // Evaluate the sample length against the acceptable range for the lot's size
-  const lotRow = db.query("SELECT size FROM LOT WHERE lot_no = ?", [lot_no]);
-  const size = lotRow.length ? lotRow[0].size : null;
-  const length_in_spec = sizeRanges.evaluateLength(size, length);
+  // The fish's size comes from its weight
+  const size = sizeClasses.classify(weight);
 
   const result = db.run(
-    "INSERT INTO MUESTRA (image, weight, length, height, date, head_length, tail_trigger, lot_no, length_in_spec) VALUES (@image, @weight, @length, @height, @date, @head_length, @tail_trigger, @lot_no, @length_in_spec)",
-    { image, weight, length, height, date, head_length, tail_trigger, lot_no, length_in_spec }
+    "INSERT INTO MUESTRA (image, weight, length, height, date, head_length, tail_trigger, lot_no, size) VALUES (@image, @weight, @length, @height, @date, @head_length, @tail_trigger, @lot_no, @size)",
+    { image, weight, length, height, date, head_length, tail_trigger, lot_no, size }
   );
 
   let message = "Error in creating batch";
@@ -98,7 +96,7 @@ function create(muestra) {
 
   console.warn(message);
 
-  return { message };
+  return { message, id: Number(result.lastInsertRowid), size };
 }
 
 // function changeType(data) {
@@ -120,26 +118,6 @@ function create(muestra) {
 //   return { data };
 // }
 
-// Re-evaluate every stored sample against the current ranges. Used once after
-// the ranges moved from centimetres to millimetres: samples saved before were
-// compared with centimetre limits and nearly all came out "out of spec".
-function reevaluateLengthSpec() {
-  const ranges = sizeRanges.getRanges();
-  const rows = db.query(
-    "SELECT m.id, m.length, m.length_in_spec, l.size FROM MUESTRA m LEFT JOIN LOT l ON l.lot_no = m.lot_no",
-    []
-  );
-  let changed = 0;
-  rows.forEach((row) => {
-    const spec = sizeRanges.evaluateLength(row.size, row.length, ranges);
-    if (spec !== row.length_in_spec) {
-      db.run("UPDATE MUESTRA SET length_in_spec = @spec WHERE id = @id", { spec, id: row.id });
-      changed += 1;
-    }
-  });
-  return { evaluated: rows.length, changed };
-}
-
 function remove(id) {
   db.run("DELETE FROM MUESTRA_DEFECT WHERE muestra_id = @id", { id });
   db.run("DELETE FROM MUESTRA WHERE id = @id", { id });
@@ -159,5 +137,4 @@ module.exports = {
   getAllFrom,
   getByLotNo,
   getDefects,
-  reevaluateLengthSpec,
 };

@@ -14,7 +14,7 @@ const lot_anisakis = require("./services/anisakis");
 const lotReport  = require("./services/lotReport");
 const pdfReport  = require("./services/pdfReport");
 const calibration = require("./services/calibrationHistory");
-const sizeRanges  = require("./services/sizeRanges");
+const sizeClasses = require("./services/sizeClasses");
 // const { v4: uuidv4 } = require('uuid'); // import uuid
 
 const app = express();
@@ -150,8 +150,9 @@ app.post("/add", upload.single("image"), (req, res) => {
   // generate filename with datetime
   newData.defects = JSON.parse(req.body.defects);
   newData.image = req.file.filename;
-  muestra.create(newData);
-  res.send(`New data added successfully!`);
+  // Tell the station which size the fish was classified as
+  const { id, size } = muestra.create(newData);
+  res.json({ message: "New data added successfully!", id, size });
 });
 
 app.post("/add-lot-image", upload.single("image"), (req, res) => {
@@ -178,16 +179,16 @@ app.post("/add-anisakis", (req, res) => {
   res.json(result);
 });
 
-app.get("/size-ranges", (req, res) => {
-  res.json(sizeRanges.getRanges());
+app.get("/size-classes", (req, res) => {
+  res.json(sizeClasses.getClasses());
 });
 
-app.post("/size-ranges", (req, res) => {
+app.post("/size-classes", (req, res) => {
   try {
-    res.json(sizeRanges.saveRanges(req.body));
+    res.json(sizeClasses.saveClasses(req.body));
   } catch (error) {
     console.error(error);
-    res.status(500).json({ error: "Failed to save size ranges" });
+    res.status(error.statusCode || 500).json({ error: error.statusCode ? error.message : "Failed to save size classes" });
   }
 });
 
@@ -342,11 +343,8 @@ app.get("/download-lot-samples/:lot_no", async (req, res) => {
     // Una columna por defecto: 1 si presente, 0 si no
     const allDefects = muestra.getDefects();
 
-    // Acceptable length range for this lot's size
-    const range = sizeRanges.getRangeForSize(lotInfo.size);
-    const rangeLabel = range
-      ? `${range.length_min ?? "—"} - ${range.length_max ?? "—"}`
-      : "—";
+    // Weight range of each size, for the "Weight Range" column
+    const rangeLabels = sizeClasses.rangeLabels();
 
     // IT wants redundant measurement columns per fish type (for now WR & HGT):
     // the sample's weight/length/height land in the columns matching the lot's
@@ -374,8 +372,7 @@ app.get("/download-lot-samples/:lot_no", async (req, res) => {
     });
 
     const tailHeaders = [
-      { header: "Length Range",   key: "length_range" },
-      { header: "Length In Spec", key: "length_in_spec" },
+      { header: "Weight Range",   key: "weight_range" },
       { header: "Date",           key: "sample_date" },
       { header: "Time (KL)",      key: "sample_time" },
     ];
@@ -416,14 +413,13 @@ app.get("/download-lot-samples/:lot_no", async (req, res) => {
         ...sample,
         fish_species: lotInfo.fish_species,
         type: lotInfo.type,
-        size: lotInfo.size,
+        // Each fish's own size, from its weight
+        size: sample.size ?? "",
         item_code: lotInfo.item_code,
         order_no: lotInfo.order_no,
         supplier: lotInfo.supplier,
         ...typeMeasureCols,
-        length_range: rangeLabel,
-        // 1 = in spec, 0 = out of spec, blank = not evaluated (legacy / no range)
-        length_in_spec: sample.length_in_spec == null ? "" : sample.length_in_spec,
+        weight_range: sample.size ? rangeLabels[sample.size] ?? "" : "",
         sample_date,
         sample_time,
         ...defectCols,
@@ -451,10 +447,5 @@ app.get("/download-lot-samples/:lot_no", async (req, res) => {
 });
 
 // Start the server
-// Size ranges moved from centimetres to millimetres (2026-10-22).
-if (sizeRanges.migrate()) {
-  const result = muestra.reevaluateLengthSpec();
-  console.log(`Size ranges converted to mm; length_in_spec re-evaluated: ${JSON.stringify(result)}`);
-}
 
 app.listen(port, () => console.log(`Server running on port ${port}`));

@@ -68,10 +68,17 @@ db.exec(`
 
 // Migration: record whether each sample's length met the size's acceptable range.
 // 1 = in spec, 0 = out of spec, NULL = not evaluated (no range / legacy rows).
+// No longer written since sizes come from the weight (2026-10-23).
+//
+// Migration: each sample's size, taken from its weight when it is saved
+// (JITNEY, BUFFET, TALL or REJECTED; NULL without a weight).
 {
   const mCols = db.prepare("PRAGMA table_info(MUESTRA)").all().map(c => c.name);
   if (!mCols.includes("length_in_spec")) {
     db.exec("ALTER TABLE MUESTRA ADD COLUMN length_in_spec INTEGER");
+  }
+  if (!mCols.includes("size")) {
+    db.exec("ALTER TABLE MUESTRA ADD COLUMN size STRING");
   }
 }
 

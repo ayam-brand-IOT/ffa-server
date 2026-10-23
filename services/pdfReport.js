@@ -187,6 +187,64 @@ function lengthDistributionChart(doc, dist, range) {
   doc.y = baseY + padB + 6;
 }
 
+// Vertical bars, one per size plus REJECTED, with the predominant size
+// highlighted. Percentages are of all fish weighed in the lot.
+function sizeDistributionChart(doc, dist) {
+  const chartH = 170;
+  const padL = 34;   // room for y-axis labels
+  const padB = 44;   // size name, weight range and % under each bar
+  const plotX = MARGIN + padL;
+  const plotW = CONTENT - padL;
+  const topY = doc.y + 12;  // room for the count above the tallest bar
+  const plotH = chartH - padB;
+  const baseY = topY + plotH;
+
+  // Whole-number gridlines: the axis tops out at the next multiple of the step
+  const highest = Math.max(1, ...dist.sizes.map((s) => s.count));
+  const step = Math.ceil(highest / 4);
+  const yTicks = Math.ceil(highest / step);
+  const maxCount = step * yTicks;
+
+  doc.font("Helvetica").fontSize(6).fillColor(C.muted);
+  for (let i = 0; i <= yTicks; i++) {
+    const val = step * i;
+    const y = baseY - (i / yTicks) * plotH;
+    doc.save().lineWidth(0.4).strokeColor("#EEF1F7").moveTo(plotX, y).lineTo(plotX + plotW, y).stroke().restore();
+    doc.fillColor(C.muted).text(String(val), MARGIN, y - 3, { width: padL - 6, align: "right" });
+  }
+  doc.save().lineWidth(0.8).strokeColor(C.border).moveTo(plotX, baseY).lineTo(plotX + plotW, baseY).stroke().restore();
+
+  const slotW = plotW / dist.sizes.length;
+  const barW = Math.min(70, slotW * 0.55);
+
+  dist.sizes.forEach((s, i) => {
+    const cx = plotX + slotW * i + slotW / 2;
+    const bh = (s.count / maxCount) * plotH;
+    const color = s.rejected ? C.red : s.predominant ? C.brand : "#9FB6DC";
+    const labelColor = s.count === 0 ? C.muted : s.rejected || s.predominant ? color : C.text;
+
+    if (s.count > 0) {
+      doc.rect(cx - barW / 2, baseY - bh, barW, bh).fill(color);
+    }
+    doc.font("Helvetica-Bold").fontSize(9).fillColor(labelColor)
+      .text(String(s.count), cx - slotW / 2, baseY - bh - 12, { width: slotW, align: "center" });
+
+    if (s.predominant) {
+      doc.font("Helvetica-Bold").fontSize(6.5).fillColor(C.accent)
+        .text("PREDOMINANT", cx - slotW / 2, baseY - bh - 21, { width: slotW, align: "center" });
+    }
+
+    doc.font("Helvetica-Bold").fontSize(8).fillColor(s.rejected ? C.red : C.text)
+      .text(s.size, cx - slotW / 2, baseY + 5, { width: slotW, align: "center" });
+    doc.font("Helvetica").fontSize(6.5).fillColor(C.muted)
+      .text(s.range, cx - slotW / 2, baseY + 16, { width: slotW, align: "center" });
+    doc.font("Helvetica-Bold").fontSize(7.5).fillColor(labelColor)
+      .text(`${fmt(s.pct)}%`, cx - slotW / 2, baseY + 26, { width: slotW, align: "center" });
+  });
+
+  doc.y = baseY + padB;
+}
+
 // The footer deliberately sits inside the bottom margin. PDFKit starts a new
 // page whenever text lands past that margin, so each footer used to append a
 // blank page; lifting the limit for the duration of the write avoids it.
@@ -209,6 +267,11 @@ function addPageFooter(doc, reportDate, lotNo, pageNo, pageCount) {
     );
 
   doc.page.margins.bottom = savedBottomMargin;
+}
+
+function predominantLabel(sd) {
+  if (!sd || !sd.predominant.length) return "—";
+  return sd.predominant.join(" / ") + (sd.predominant.length > 1 ? " (tie)" : "");
 }
 
 // ─── main export ─────────────────────────────────────────────────────────────
@@ -255,8 +318,7 @@ function generateLotPdf(data, uploadsPath) {
     { label: "Supplier",        value: data.lot.supplier },
     { label: "Fish Species",    value: data.lot.fish_species },
     { label: "Type",            value: data.lot.type },
-    { label: "Size",            value: data.lot.size },
-    { label: "Length Range",    value: data.lengthSpec ? data.lengthSpec.rangeLabel : "—" },
+    { label: "Predominant Size", value: predominantLabel(data.sizeDistribution) },
     { label: "Production Date", value: dateStr(data.lot.production_date) },
     { label: "Order No",        value: data.lot.order_no },
     { label: "Item Code",       value: data.lot.item_code },
@@ -282,27 +344,42 @@ function generateLotPdf(data, uploadsPath) {
 
   doc.y = bY + boxH + 14;
 
-  // ── LENGTH COMPLIANCE ─────────────────────────────────────────────────────
-  if (data.lengthSpec) {
-    const ls = data.lengthSpec;
-    sectionTitle(doc, "Length Compliance");
-    doc.moveDown(0.3);
+  // ── SIZE DISTRIBUTION ─────────────────────────────────────────────────────
+  {
+    const sd = data.sizeDistribution;
+    // Needs ~230pt; break to a new page if it won't fit
+    if (doc.y + 230 > PAGE_H - 80) {
+      doc.addPage();
+      doc.y = MARGIN;
+    }
+    sectionTitle(doc, "Size Distribution (by weight)");
+    doc.moveDown(0.4);
 
-    const pctColor = parseFloat(ls.pct) >= 90 ? C.green : parseFloat(ls.pct) >= 70 ? C.accent : C.red;
+    if (sd.total === 0) {
+      doc.font("Helvetica").fontSize(9).fillColor(C.muted)
+        .text("No weighed samples in this lot.", MARGIN, doc.y);
+      doc.moveDown(1);
+    } else {
+      doc.font("Helvetica-Bold").fontSize(10).fillColor(C.brand)
+        .text(
+          sd.predominant.length
+            ? `Predominant size: ${predominantLabel(sd)}  —  ${fmt(sd.predominantPct)}% of ${sd.total} fish`
+            : `No fish reached the smallest size`,
+          MARGIN, doc.y, { width: CONTENT }
+        );
+      const rejectedRange = sd.sizes.find((s) => s.rejected).range;
+      doc.font("Helvetica").fontSize(8).fillColor(C.muted)
+        .text(
+          `${sd.total} fish weighed   ·   ${sd.accepted} sized   ·   ` +
+          `${sd.rejected} rejected (${rejectedRange}, ${fmt(sd.rejectedPct)}%)` +
+          (sd.unclassified ? `   ·   ${sd.unclassified} without weight` : ""),
+          MARGIN, doc.y + 2, { width: CONTENT }
+        );
+      doc.moveDown(0.8);
 
-    keyValueGrid(doc, [
-      { label: "Acceptable Range", value: ls.rangeLabel },
-      { label: "Samples Evaluated", value: String(ls.evaluated) },
-      { label: "In Spec",          value: `${ls.inSpec} / ${ls.evaluated}` },
-      { label: "Out of Spec",      value: String(ls.outOfSpec) },
-    ], 4);
-
-    const barY = doc.y;
-    horizontalBar(doc, MARGIN, barY, CONTENT, parseFloat(ls.pct), pctColor);
-    doc.font("Helvetica-Bold").fontSize(8).fillColor(pctColor)
-      .text(`${ls.pct}% within acceptable length range`, MARGIN, barY + 12);
-    doc.y = barY + 28;
-    doc.moveDown(0.5);
+      sizeDistributionChart(doc, sd);
+      doc.moveDown(0.5);
+    }
   }
 
   // ── LENGTH DISTRIBUTION ───────────────────────────────────────────────────
@@ -323,7 +400,7 @@ function generateLotPdf(data, uploadsPath) {
       );
     doc.moveDown(0.5);
 
-    lengthDistributionChart(doc, ld, data.lengthSpec ? data.lengthSpec.range : null);
+    lengthDistributionChart(doc, ld, null);
     doc.moveDown(0.5);
   }
 
