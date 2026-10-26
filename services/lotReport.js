@@ -128,6 +128,18 @@ function getLotReportData(lot_no) {
     [lot_no]
   );
 
+  // Lightest to heaviest and shortest to longest fish in the lot. Zero means
+  // the scale or camera had no reading, so it does not count as the minimum.
+  const ranges = db.query(
+    `SELECT
+       MIN(CASE WHEN weight > 0 THEN weight END) AS weight_min,
+       MAX(CASE WHEN weight > 0 THEN weight END) AS weight_max,
+       MIN(CASE WHEN length > 0 THEN length END) AS length_min,
+       MAX(CASE WHEN length > 0 THEN length END) AS length_max
+     FROM MUESTRA WHERE lot_no = ?`,
+    [lot_no]
+  )[0] ?? {};
+
   const defects = db.query(
     `SELECT
        d.name,
@@ -197,6 +209,10 @@ function getLotReportData(lot_no) {
     extraImages: extraImages.map((r) => r.image),
     sizeDistribution,
     lengthDistribution,
+    ranges: {
+      weight: { min: ranges.weight_min ?? null, max: ranges.weight_max ?? null },
+      length: { min: ranges.length_min ?? null, max: ranges.length_max ?? null },
+    },
   };
 }
 

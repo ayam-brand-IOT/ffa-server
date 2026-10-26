@@ -33,6 +33,16 @@ function dateStr(iso) {
   });
 }
 
+// Starts a new page when the next block would not fit. Text written past the
+// bottom margin makes PDFKit break the page by itself, once per text call,
+// which scatters a section over several almost empty pages.
+function ensureSpace(doc, needed) {
+  if (doc.y + needed > PAGE_H - 80) {
+    doc.addPage();
+    doc.y = MARGIN;
+  }
+}
+
 function sectionTitle(doc, title) {
   const y = doc.y;
   doc.rect(MARGIN, y, CONTENT, 22).fill(C.brand);
@@ -53,6 +63,10 @@ function keyValueGrid(doc, items, cols = 2) {
   let maxRowH = 0;
 
   items.forEach((item, i) => {
+    if (col === 0 && rowY + 30 > PAGE_H - 80) {
+      doc.addPage();
+      rowY = MARGIN;
+    }
     const x = MARGIN + col * colW;
     doc.font("Helvetica-Bold").fontSize(7).fillColor(C.muted).text(item.label.toUpperCase(), x, rowY);
     doc.font("Helvetica").fontSize(9).fillColor(C.text).text(item.value ?? "—", x, rowY + 10, { width: colW - 10 });
@@ -269,6 +283,12 @@ function addPageFooter(doc, reportDate, lotNo, pageNo, pageCount) {
   doc.page.margins.bottom = savedBottomMargin;
 }
 
+// "45.0 – 80.5 g", or a single value when every sample weighed the same.
+function rangeLabel(r, unit) {
+  if (!r || r.min == null || r.max == null) return "—";
+  return r.min === r.max ? `${fmt(r.min)} ${unit}` : `${fmt(r.min)} – ${fmt(r.max)} ${unit}`;
+}
+
 function predominantLabel(sd) {
   if (!sd || !sd.predominant.length) return "—";
   return sd.predominant.join(" / ") + (sd.predominant.length > 1 ? " (tie)" : "");
@@ -322,6 +342,8 @@ function generateLotPdf(data, uploadsPath) {
     { label: "Production Date", value: dateStr(data.lot.production_date) },
     { label: "Order No",        value: data.lot.order_no },
     { label: "Item Code",       value: data.lot.item_code },
+    { label: "Weight Range",    value: rangeLabel(data.ranges.weight, "g") },
+    { label: "Length Range",    value: rangeLabel(data.ranges.length, "mm") },
   ], 4);
 
   doc.moveDown(0.5);
@@ -348,10 +370,7 @@ function generateLotPdf(data, uploadsPath) {
   {
     const sd = data.sizeDistribution;
     // Needs ~230pt; break to a new page if it won't fit
-    if (doc.y + 230 > PAGE_H - 80) {
-      doc.addPage();
-      doc.y = MARGIN;
-    }
+    ensureSpace(doc, 230);
     sectionTitle(doc, "Size Distribution (by weight)");
     doc.moveDown(0.4);
 
@@ -385,10 +404,7 @@ function generateLotPdf(data, uploadsPath) {
   // ── LENGTH DISTRIBUTION ───────────────────────────────────────────────────
   if (data.lengthDistribution) {
     // Needs ~200pt; break to a new page if it won't fit
-    if (doc.y + 210 > PAGE_H - 80) {
-      doc.addPage();
-      doc.y = MARGIN;
-    }
+    ensureSpace(doc, 210);
     sectionTitle(doc, "Fish Length Distribution");
     doc.moveDown(0.3);
 
@@ -405,6 +421,8 @@ function generateLotPdf(data, uploadsPath) {
   }
 
   // ── DEFECT ANALYSIS ───────────────────────────────────────────────────────
+  // Title, header and the first row stay together.
+  ensureSpace(doc, 70);
   sectionTitle(doc, "Defect Analysis");
   doc.moveDown(0.3);
 
@@ -437,8 +455,7 @@ function generateLotPdf(data, uploadsPath) {
       // itself, once per text call, which scatters the table over blank
       // pages. Break deliberately instead and repeat the header.
       if (doc.y + rowH > PAGE_H - 80) {
-        doc.addPage();
-        doc.y = MARGIN;
+        ensureSpace(doc, rowH);
         drawHeader();
       }
 
@@ -464,6 +481,7 @@ function generateLotPdf(data, uploadsPath) {
   }
 
   // ── BROKEN BELLY TEST ─────────────────────────────────────────────────────
+  ensureSpace(doc, 70);
   sectionTitle(doc, "Broken Belly Test (BRT)");
   doc.moveDown(0.3);
 
@@ -484,10 +502,7 @@ function generateLotPdf(data, uploadsPath) {
     const m  = an.metrics;
 
     // Needs ~140pt for title + summary + 4 table rows.
-    if (doc.y + 140 > PAGE_H - 80) {
-      doc.addPage();
-      doc.y = MARGIN;
-    }
+    ensureSpace(doc, 140);
 
     sectionTitle(doc, "Anisakis Inspection");
     doc.moveDown(0.3);
@@ -533,10 +548,7 @@ function generateLotPdf(data, uploadsPath) {
     ];
 
     rows.forEach((r, i) => {
-      if (doc.y + rowH > PAGE_H - 80) {
-        doc.addPage();
-        doc.y = MARGIN;
-      }
+      ensureSpace(doc, rowH);
 
       const rY   = doc.y;
       const pct  = r.prev == null ? 0 : r.prev;
@@ -565,6 +577,7 @@ function generateLotPdf(data, uploadsPath) {
 
   // ── EXTRA IMAGES ─────────────────────────────────────────────────────────
   if (data.extraImages.length > 0) {
+    ensureSpace(doc, 50);
     sectionTitle(doc, `Other Findings Images  (${data.extraImages.length})`);
     doc.moveDown(0.4);
 
