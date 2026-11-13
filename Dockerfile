@@ -11,11 +11,12 @@ COPY . /app
 ENV PORT=3002
 ENV DATABASE_PATH=/app/data/ffa-server.sqlite
 ENV UPLOADS_PATH=/app/muestras
+ENV EXPORTS_PATH=/app/exports
 
-RUN mkdir -p /app/data /app/muestras
+RUN mkdir -p /app/data /app/muestras /app/exports
 
 EXPOSE 3002
 
-VOLUME ["/app/data", "/app/muestras"]
+VOLUME ["/app/data", "/app/muestras", "/app/exports"]
 
 CMD ["npm", "start"]

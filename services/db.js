@@ -37,6 +37,20 @@ db.exec(`
   )
 `);
 
+// Report and Excel saved on the server each time a lot's analysis is
+// finished. A lot finished twice keeps both, each in its own folder.
+db.exec(`
+  CREATE TABLE IF NOT EXISTS LOT_EXPORT (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    lot_no     STRING NOT NULL,
+    stamp      STRING NOT NULL,
+    folder     STRING NOT NULL,
+    pdf_file   STRING NOT NULL,
+    xlsx_file  STRING NOT NULL,
+    created_at DATE   NOT NULL
+  )
+`);
+
 // Anisakis inspection: one row per test run on a lot. A lot may be re-tested,
 // so history is kept and reports read the most recent row.
 db.exec(`
