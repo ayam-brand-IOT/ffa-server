@@ -2,6 +2,10 @@ FROM node:16-bookworm
 
 WORKDIR /app
 
+# Saved exports are copied to a Windows share (services/smbCopy.js)
+RUN apt-get update && apt-get install -y --no-install-recommends smbclient \
+    && rm -rf /var/lib/apt/lists/*
+
 COPY package*.json ./
 
 RUN npm ci --omit=dev

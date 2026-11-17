@@ -51,6 +51,14 @@ db.exec(`
   )
 `);
 
+// Migration: copy of each export on the SMB share. NULL smb_copied_at means
+// not copied yet (or the share is not configured); smb_error says why.
+{
+  const eCols = db.prepare("PRAGMA table_info(LOT_EXPORT)").all().map(c => c.name);
+  if (!eCols.includes("smb_copied_at")) db.exec("ALTER TABLE LOT_EXPORT ADD COLUMN smb_copied_at DATE");
+  if (!eCols.includes("smb_error")) db.exec("ALTER TABLE LOT_EXPORT ADD COLUMN smb_error STRING");
+}
+
 // Anisakis inspection: one row per test run on a lot. A lot may be re-tested,
 // so history is kept and reports read the most recent row.
 db.exec(`

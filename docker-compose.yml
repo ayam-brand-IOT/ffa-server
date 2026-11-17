@@ -9,9 +9,13 @@ services:
       - ./data:/app/data
       - ./muestras:/app/muestras
       - ./exports:/app/exports
+      # smbclient auth file (username/password/domain); kept out of git
+      - ${SMB_AUTH_HOST_FILE:-./smb.auth}:/run/secrets/smb.auth:ro
     environment:
       - PORT=3002
       - DATABASE_PATH=/app/data/ffa-server.sqlite
       - UPLOADS_PATH=/app/muestras
       - EXPORTS_PATH=/app/exports
+      - SMB_SHARE=${SMB_SHARE:-}
+      - SMB_AUTH_FILE=/run/secrets/smb.auth
     restart: unless-stopped

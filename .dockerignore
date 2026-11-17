@@ -7,3 +7,5 @@ muestras
 *.sqlite
 data.xlsx
 exports
+smb.auth
+.env

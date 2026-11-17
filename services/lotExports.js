@@ -4,6 +4,7 @@ const db = require("./db");
 const lotReport = require("./lotReport");
 const pdfReport = require("./pdfReport");
 const lotExcel = require("./lotExcel");
+const smbCopy = require("./smbCopy");
 
 const exportsPath = path.resolve(
   process.env.EXPORTS_PATH || path.join(__dirname, "..", "exports")
@@ -62,8 +63,48 @@ async function create(lot_no, uploadsPath) {
      VALUES (@lot_no, @stamp, @folder, @pdf_file, @xlsx_file, @created_at)`,
     { lot_no: String(lot_no), stamp, folder, pdf_file, xlsx_file, created_at: now.toISOString() }
   );
+  // The station does not wait for the share; a failed copy is retried later.
+  copyToShare(getById(lastInsertRowid));
   return getById(lastInsertRowid);
 }
+
+let copying = Promise.resolve();
+
+// One copy at a time, so a retry never races the copy of a new export.
+function copyToShare(row) {
+  if (!smbCopy.enabled()) return copying;
+  copying = copying.then(async () => {
+    try {
+      await smbCopy.copyFolder(path.join(exportsPath, row.folder), row.folder, [
+        row.pdf_file,
+        row.xlsx_file,
+      ]);
+      db.run(`UPDATE LOT_EXPORT SET smb_copied_at = @at, smb_error = NULL WHERE id = @id`, {
+        at: new Date().toISOString(),
+        id: row.id,
+      });
+    } catch (error) {
+      console.error(`SMB copy of export ${row.id} failed:`, error.message);
+      db.run(`UPDATE LOT_EXPORT SET smb_error = @err WHERE id = @id`, {
+        err: error.message,
+        id: row.id,
+      });
+    }
+  });
+  return copying;
+}
+
+// Exports the share did not get yet (share down, or saved before it was set up).
+function retryPending() {
+  if (!smbCopy.enabled()) return;
+  db.query(`SELECT * FROM LOT_EXPORT WHERE smb_copied_at IS NULL ORDER BY id`, []).forEach(
+    (row) => copyToShare(row)
+  );
+}
+
+const RETRY_MS = 10 * 60 * 1000;
+setTimeout(retryPending, 5000);
+setInterval(retryPending, RETRY_MS).unref();
 
 function getById(id) {
   return db.query(`SELECT * FROM LOT_EXPORT WHERE id = ?`, [id])[0] ?? null;
@@ -89,4 +130,4 @@ function filePath(row, kind) {
   return name && path.join(exportsPath, row.folder, name);
 }
 
-module.exports = { create, find, list, filePath, exportsPath };
+module.exports = { create, find, list, filePath, exportsPath, retryPending };

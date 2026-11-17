@@ -274,6 +274,7 @@ function describeExport(row) {
     stamp: row.stamp,
     created_at: row.created_at,
     files: { pdf: `${base}/pdf`, excel: `${base}/excel` },
+    smb: { copied_at: row.smb_copied_at ?? null, error: row.smb_error ?? null },
   };
 }
 
