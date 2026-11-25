@@ -32,6 +32,23 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, "public"))); // serve static files from the "public" directory
 
+// Lot numbers can carry a slash ("90/110 B-"). Sent raw, it splits the path
+// and no route matches, so the lot looks empty. Fold everything after the
+// route name back into the lot number before routing.
+const LOT_ROUTES = /^\/(lot_guts_weight|lot_guts_weight_latest|lot_anisakis|lot_anisakis_latest|lot_samples|lot_samples_full|lot_images|lot_tension|download-lot-report|download-lot-samples|ffa-station\/exports)\/(.+\/.+)$/;
+app.use((req, res, next) => {
+  const match = req.path.match(LOT_ROUTES);
+  if (match) {
+    const query = req.url.slice(req.path.length);
+    try {
+      req.url = `/${match[1]}/${encodeURIComponent(decodeURIComponent(match[2]))}${query}`;
+    } catch (error) {
+      return res.status(400).json({ error: "Malformed lot number" });
+    }
+  }
+  next();
+});
+
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
     cb(null, uploadsPath);
